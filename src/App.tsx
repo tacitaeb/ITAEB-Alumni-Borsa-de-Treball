@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PageId, UserSession, JobOffer } from './types';
+import { PageId, UserSession, JobOffer, AlumniRecord } from './types';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { HomeView } from './components/HomeView';
@@ -10,12 +10,13 @@ import { OffersView } from './components/OffersView';
 import { CoordinatorView } from './components/CoordinatorView';
 import { AccessDenied } from './components/AccessDenied';
 import { LoginModal } from './components/LoginModal';
-import { INITIAL_OFFERS } from './utils/jobData';
+import { INITIAL_OFFERS, INITIAL_REGISTERED_ALUMNI } from './utils/jobData';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageId>('inici');
   const [loginModalOpen, setLoginModalOpen] = useState(false);
 
+  // Ofertes de treball
   const [offers, setOffers] = useState<JobOffer[]>(() => {
     try {
       const saved = localStorage.getItem('itaeb_offers');
@@ -24,6 +25,17 @@ export default function App() {
       console.warn('Error reading stored offers:', e);
     }
     return INITIAL_OFFERS;
+  });
+
+  // Registre d'exalumnes (Full "Exalumnes" de Google Sheets)
+  const [registeredAlumni, setRegisteredAlumni] = useState<AlumniRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('itaeb_registered_alumni');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Error reading registered alumni:', e);
+    }
+    return INITIAL_REGISTERED_ALUMNI;
   });
 
   const [selectedOffer, setSelectedOffer] = useState<JobOffer | null>(null);
@@ -58,6 +70,15 @@ export default function App() {
     }
   }, [offers]);
 
+  // Guardar canvis d'exalumnes registrats
+  useEffect(() => {
+    try {
+      localStorage.setItem('itaeb_registered_alumni', JSON.stringify(registeredAlumni));
+    } catch (e) {
+      console.warn('Error saving registered alumni:', e);
+    }
+  }, [registeredAlumni]);
+
   // Guardar canvis de sessió
   const handleLoginSuccess = (session: UserSession) => {
     setUserSession(session);
@@ -86,6 +107,10 @@ export default function App() {
     }
   };
 
+  const handleRegisterAlumni = (record: AlumniRecord) => {
+    setRegisteredAlumni(prev => [record, ...prev]);
+  };
+
   // Support ?autostart=1 or direct page deep-linking
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -96,8 +121,8 @@ export default function App() {
     const roleParam = params.get('role');
     if (roleParam === 'alumni') {
       handleLoginSuccess({
-        email: 'alumni.verificat@itaeb.cat',
-        name: 'Marc Martínez (Alumni ITAEB)',
+        email: 'marc.martinez@gmail.com',
+        name: 'Marc Martínez Soler',
         isMemberOfAlumniGroup: true,
         role: 'alumni',
       });
@@ -146,7 +171,13 @@ export default function App() {
         return <AboutView onNavigate={setCurrentPage} />;
 
       case 'alumni':
-        return <AlumniView onNavigate={setCurrentPage} />;
+        return (
+          <AlumniView
+            onNavigate={setCurrentPage}
+            onRegisterAlumni={handleRegisterAlumni}
+            onLoginDirect={handleLoginSuccess}
+          />
+        );
 
       case 'empreses':
         return <CompaniesView onNavigate={setCurrentPage} />;
@@ -158,6 +189,7 @@ export default function App() {
             <AccessDenied
               onLoginSuccess={handleLoginSuccess}
               onGoToAlumniInfo={() => setCurrentPage('alumni')}
+              registeredAlumni={registeredAlumni}
             />
           );
         }
@@ -214,7 +246,11 @@ export default function App() {
         isOpen={loginModalOpen}
         onClose={() => setLoginModalOpen(false)}
         onLoginSuccess={handleLoginSuccess}
-        onGoToRegistration={() => setCurrentPage('alumni')}
+        onGoToRegistration={() => {
+          setLoginModalOpen(false);
+          setCurrentPage('alumni');
+        }}
+        registeredAlumni={registeredAlumni}
       />
     </div>
   );

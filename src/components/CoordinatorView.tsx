@@ -264,17 +264,21 @@ export const CoordinatorView: React.FC<CoordinatorViewProps> = ({
 
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
                 <h3 className="font-bold text-sm text-slate-900 mb-2">
-                  Full 2: "Exalumnes" (8 columnes)
+                  Full 2: "Exalumnes" (Columnes oficials del formulari)
                 </h3>
-                <div className="text-xs text-slate-600 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <div>0: Marca de temps</div>
-                  <div>1: Nom i cognoms</div>
-                  <div>2: DNI o document</div>
-                  <div>3: Correu electrònic</div>
-                  <div>4: Any de graduació</div>
-                  <div>5: Especialitat cursada</div>
-                  <div>6: Sectors d'interès</div>
-                  <div>7: Notificacions per correu</div>
+                <div className="text-xs text-slate-600 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>0: <strong>Marca de temps</strong> (Data i hora)</div>
+                  <div>1: <strong>Nom i cognoms</strong></div>
+                  <div>2: <strong>Número de DNI o document</strong> (per validar)</div>
+                  <div>3: <strong>Correu electrònic</strong> (personal, NO @itaeb.cat)</div>
+                  <div>4: <strong>Contrasenya</strong> (per iniciar sessió a la web)</div>
+                  <div>5: <strong>Any de graduació</strong></div>
+                  <div>6: <strong>Especialitat cursada</strong></div>
+                  <div>7: <strong>Sectors d'interès</strong> (11 sectors, per alertes)</div>
+                  <div>8: <strong>Notificacions per correu</strong> (Sí / No)</div>
+                </div>
+                <div className="mt-3 text-[11px] text-sky-800 bg-sky-50 p-2 rounded-lg border border-sky-200">
+                  Nota: El correu afegit és personal (no @itaeb.cat perquè el compte institucional d'alumne es dona de baixa). Quan es verifica l'alta, aquest correu s'afegeix directament al grup de Google Workspace <strong>alumni@itaeb.cat</strong>.
                 </div>
               </div>
 

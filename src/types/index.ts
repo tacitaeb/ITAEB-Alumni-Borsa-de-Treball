@@ -22,7 +22,8 @@ export interface AlumniRecord {
   marcaTemps: string;
   nomCognoms: string;
   dni: string;
-  correu: string;
+  correu: string; // Correu personal de contacte (no pot ser @itaeb.cat)
+  contrasenya: string;
   anyGraduacio: string;
   especialitat: string;
   sectorsInteres: string[];

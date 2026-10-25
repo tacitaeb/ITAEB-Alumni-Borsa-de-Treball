@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { Lock, UserCheck, AlertCircle, X, ExternalLink, Mail, CheckCircle2, Shield } from 'lucide-react';
-import { UserSession } from '../types';
-import { authenticateAlumniUser, OFFICIAL_REGISTRY_SAMPLE, OFFICIAL_FORMS } from '../utils/jobData';
+import { Lock, UserCheck, AlertCircle, X, ExternalLink, Mail, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { UserSession, AlumniRecord } from '../types';
+import { authenticateWithCredentials } from '../utils/jobData';
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLoginSuccess: (session: UserSession) => void;
   onGoToRegistration: () => void;
+  registeredAlumni: AlumniRecord[];
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({
@@ -15,8 +16,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   onClose,
   onLoginSuccess,
   onGoToRegistration,
+  registeredAlumni,
 }) => {
-  const [identifier, setIdentifier] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -25,18 +29,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     e.preventDefault();
     setErrorMsg(null);
 
-    const result = authenticateAlumniUser(identifier, OFFICIAL_REGISTRY_SAMPLE);
+    const result = authenticateWithCredentials(email, password, registeredAlumni);
     if (result.success && result.user) {
       onLoginSuccess(result.user);
       onClose();
     } else {
-      setErrorMsg(result.reason || "No s'ha pogut verificar el document.");
+      setErrorMsg(result.reason || "Correu o contrasenya incorrectes.");
     }
   };
 
-  const handleQuickDemoAlumni = (dni: string) => {
-    setIdentifier(dni);
-    const result = authenticateAlumniUser(dni, OFFICIAL_REGISTRY_SAMPLE);
+  const handleQuickFill = (demoEmail: string, demoPass: string) => {
+    setEmail(demoEmail);
+    setPassword(demoPass);
+    const result = authenticateWithCredentials(demoEmail, demoPass, registeredAlumni);
     if (result.success && result.user) {
       onLoginSuccess(result.user);
       onClose();
@@ -62,27 +67,63 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             Accés Exclusiu Alumni ITAEB
           </h3>
           <p className="text-xs text-slate-600">
-            Introdueix el teu <strong>DNI / NIE</strong> d'exalumne o el teu correu institucional per consultar les ofertes de treball.
+            Introdueix el teu correu electrònic personal (el que vas afegir al formulari d'alta) i la teva contrasenya.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700">
+                Correu electrònic:
+              </label>
+              <span className="text-[11px] text-amber-700 font-medium">
+                (No pot ser @itaeb.cat)
+              </span>
+            </div>
+            <div className="relative">
+              <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="email"
+                required
+                autoFocus
+                value={email}
+                onChange={e => {
+                  setEmail(e.target.value);
+                  if (errorMsg) setErrorMsg(null);
+                }}
+                placeholder="Ex: marc.martinez@gmail.com"
+                className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+              />
+            </div>
+          </div>
+
+          <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              DNI o Correu d'alumni:
+              Contrasenya:
             </label>
-            <input
-              type="text"
-              required
-              autoFocus
-              value={identifier}
-              onChange={e => {
-                setIdentifier(e.target.value);
-                if (errorMsg) setErrorMsg(null);
-              }}
-              placeholder="Ex: 47812903K o alumne@itaeb.cat"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-            />
+            <div className="relative">
+              <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={e => {
+                  setPassword(e.target.value);
+                  if (errorMsg) setErrorMsg(null);
+                }}
+                placeholder="La teva contrasenya de la borsa"
+                className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                aria-label={showPassword ? 'Amagar contrasenya' : 'Mostrar contrasenya'}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
 
           {errorMsg && (
@@ -100,7 +141,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   }}
                   className="font-bold underline text-rose-900 hover:text-rose-950 inline-flex items-center gap-1 cursor-pointer"
                 >
-                  <span>Donar-se d'alta com a Alumni (Formulari oficial)</span>
+                  <span>Donar-se d'alta a la Borsa de Treball (Formulari oficial)</span>
                   <ExternalLink className="w-3 h-3" />
                 </button>
               </div>
@@ -111,31 +152,33 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             type="submit"
             className="w-full py-3 px-4 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm shadow-md transition cursor-pointer"
           >
-            Accedir a les Ofertes
+            Entrar a la Borsa de Treball
           </button>
         </form>
 
-        {/* Demo profiles quick helper */}
-        <div className="pt-4 border-t border-slate-100 space-y-2">
+        {/* Quick demo credentials */}
+        <div className="pt-3 border-t border-slate-100 space-y-2">
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-            Alumni registrats de prova:
+            Comptes d'alumni registrats de prova:
           </span>
           <div className="grid grid-cols-2 gap-2 text-xs">
             <button
               type="button"
-              onClick={() => handleQuickDemoAlumni('47812903K')}
+              onClick={() => handleQuickFill('marc.martinez@gmail.com', 'itaeb2024')}
               className="p-2 text-left bg-slate-50 hover:bg-sky-50 border border-slate-200 rounded-lg transition cursor-pointer"
             >
-              <div className="font-semibold text-slate-900">Marc Martínez</div>
-              <div className="text-[10px] text-slate-500">DNI: 47812903K (Il·luminació)</div>
+              <div className="font-semibold text-slate-900 truncate">Marc Martínez</div>
+              <div className="text-[10px] text-slate-500 truncate">marc.martinez@gmail.com</div>
+              <div className="text-[10px] text-sky-700 font-mono">Clau: itaeb2024</div>
             </button>
             <button
               type="button"
-              onClick={() => handleQuickDemoAlumni('39482104P')}
+              onClick={() => handleQuickFill('laura.vila@gmail.com', 'itaeb2023')}
               className="p-2 text-left bg-slate-50 hover:bg-sky-50 border border-slate-200 rounded-lg transition cursor-pointer"
             >
-              <div className="font-semibold text-slate-900">Laura Vila</div>
-              <div className="text-[10px] text-slate-500">DNI: 39482104P (So)</div>
+              <div className="font-semibold text-slate-900 truncate">Laura Vila</div>
+              <div className="text-[10px] text-slate-500 truncate">laura.vila@gmail.com</div>
+              <div className="text-[10px] text-sky-700 font-mono">Clau: itaeb2023</div>
             </button>
           </div>
         </div>

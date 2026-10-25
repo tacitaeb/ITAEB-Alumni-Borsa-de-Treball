@@ -1,29 +1,33 @@
 import React, { useState } from 'react';
-import { ShieldAlert, ExternalLink, Mail, CheckCircle, ArrowRight, Lock, AlertCircle, KeyRound } from 'lucide-react';
-import { OFFICIAL_FORMS, OFFICIAL_EMAILS, authenticateAlumniUser, OFFICIAL_REGISTRY_SAMPLE } from '../utils/jobData';
-import { UserSession } from '../types';
+import { ExternalLink, Mail, ArrowRight, Lock, AlertCircle, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { OFFICIAL_FORMS, OFFICIAL_EMAILS, authenticateWithCredentials } from '../utils/jobData';
+import { UserSession, AlumniRecord } from '../types';
 
 interface AccessDeniedProps {
   onLoginSuccess: (session: UserSession) => void;
   onGoToAlumniInfo: () => void;
+  registeredAlumni: AlumniRecord[];
 }
 
 export const AccessDenied: React.FC<AccessDeniedProps> = ({
   onLoginSuccess,
   onGoToAlumniInfo,
+  registeredAlumni,
 }) => {
-  const [identifier, setIdentifier] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
   const handleQuickLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
 
-    const result = authenticateAlumniUser(identifier, OFFICIAL_REGISTRY_SAMPLE);
+    const result = authenticateWithCredentials(email, password, registeredAlumni);
     if (result.success && result.user) {
       onLoginSuccess(result.user);
     } else {
-      setLoginError(result.reason || "DNI o correu no trobat al registre oficial.");
+      setLoginError(result.reason || "Correu o contrasenya no vàlids.");
     }
   };
 
@@ -50,7 +54,7 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
 
         {/* Content body */}
         <div className="p-6 sm:p-8 space-y-6">
-          {/* Direct Login Box for registered alumni */}
+          {/* Direct Login Box with email and password */}
           <div className="p-5 rounded-2xl bg-sky-50/70 border border-sky-200 space-y-3">
             <div className="flex items-center gap-2">
               <KeyRound className="w-4 h-4 text-sky-700" />
@@ -59,27 +63,64 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
               </h3>
             </div>
             <p className="text-xs text-slate-600">
-              Introdueix el teu DNI/NIE o correu electrònic oficial per desbloquejar les ofertes de treball:
+              Introdueix el correu personal afegit al formulari d'alta (no @itaeb.cat) i la teva contrasenya:
             </p>
 
-            <form onSubmit={handleQuickLogin} className="flex flex-col sm:flex-row gap-2 pt-1">
-              <input
-                type="text"
-                required
-                value={identifier}
-                onChange={e => {
-                  setIdentifier(e.target.value);
-                  if (loginError) setLoginError(null);
-                }}
-                placeholder="El teu DNI (ex: 47812903K) o correu"
-                className="flex-1 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-              />
-              <button
-                type="submit"
-                className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs transition shadow-xs cursor-pointer shrink-0"
-              >
-                Accedir a la Borsa
-              </button>
+            <form onSubmit={handleQuickLogin} className="space-y-3 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Correu electrònic personal:
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={e => {
+                      setEmail(e.target.value);
+                      if (loginError) setLoginError(null);
+                    }}
+                    placeholder="Ex: marc.martinez@gmail.com"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Contrasenya:
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={password}
+                      onChange={e => {
+                        setPassword(e.target.value);
+                        if (loginError) setLoginError(null);
+                      }}
+                      placeholder="Contrasenya"
+                      className="w-full px-3.5 pr-10 py-2.5 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                      aria-label={showPassword ? 'Amagar contrasenya' : 'Mostrar contrasenya'}
+                    >
+                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs transition shadow-xs cursor-pointer"
+                >
+                  Accedir a la Borsa
+                </button>
+              </div>
             </form>
 
             {loginError && (
@@ -101,18 +142,17 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
                   Inscriu-te al Formulari d'Alta
                 </h3>
                 <p className="text-xs text-slate-600 mb-3">
-                  Omple el formulari oficial amb el teu DNI i Especialitat per ser verificat i afegit a <code className="text-sky-700 font-semibold">alumni@itaeb.cat</code>.
+                  Omple el formulari d'alta amb el teu correu personal, contrasenya, DNI i especialitat per ser verificat i afegit a <code className="text-sky-700 font-semibold">alumni@itaeb.cat</code>.
                 </p>
               </div>
-              <a
-                href={OFFICIAL_FORMS.altaExalumnes}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition shadow-xs"
+              <button
+                type="button"
+                onClick={onGoToAlumniInfo}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition shadow-xs cursor-pointer"
               >
-                <span>Formulari oficial d'alta</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
+                <span>Veure formulari i instruccions</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             </div>
 
             <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between">
@@ -135,16 +175,6 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
                 <span>Contactar empresa@itaeb.cat</span>
               </a>
             </div>
-          </div>
-
-          <div className="text-center pt-2">
-            <button
-              onClick={onGoToAlumniInfo}
-              className="text-xs font-medium text-sky-700 hover:text-sky-900 underline inline-flex items-center gap-1 cursor-pointer"
-            >
-              <span>Llegir la guia completa de funcionament per als alumni</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
       </div>

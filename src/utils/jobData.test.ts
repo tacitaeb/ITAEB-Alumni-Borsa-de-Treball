@@ -5,7 +5,9 @@ import {
   normalizeDNI,
   doSectorsMatch,
   verifyAlumniAgainstRegistry,
-  authenticateAlumniUser,
+  authenticateWithCredentials,
+  registerNewAlumni,
+  INITIAL_REGISTERED_ALUMNI,
   parseCSV,
   OFFICIAL_REGISTRY_SAMPLE
 } from './jobData';
@@ -61,23 +63,54 @@ test('verifyAlumniAgainstRegistry rejects matching DNI with mismatched specialty
   assert.ok(result.reason?.includes("no coincideix exactament"));
 });
 
-test('authenticateAlumniUser authenticates registered student by DNI', () => {
-  const res = authenticateAlumniUser("47812903K", OFFICIAL_REGISTRY_SAMPLE);
+test('authenticateWithCredentials authenticates registered alumni with personal email and password', () => {
+  const res = authenticateWithCredentials("marc.martinez@gmail.com", "itaeb2024", INITIAL_REGISTERED_ALUMNI);
   assert.equal(res.success, true);
   assert.equal(res.user?.name, "Marc Martínez Soler");
   assert.equal(res.user?.isMemberOfAlumniGroup, true);
 });
 
-test('authenticateAlumniUser rejects non-registered DNI', () => {
-  const res = authenticateAlumniUser("00000000X", OFFICIAL_REGISTRY_SAMPLE);
+test('authenticateWithCredentials rejects incorrect password', () => {
+  const res = authenticateWithCredentials("marc.martinez@gmail.com", "wrongpassword", INITIAL_REGISTERED_ALUMNI);
+  assert.equal(res.success, false);
+  assert.ok(res.reason?.includes("contrasenya"));
+});
+
+test('authenticateWithCredentials rejects unregistered email', () => {
+  const res = authenticateWithCredentials("desconegut@gmail.com", "itaeb2024", INITIAL_REGISTERED_ALUMNI);
   assert.equal(res.success, false);
   assert.ok(res.reason?.includes("no consta com a alumni"));
 });
 
-test('authenticateAlumniUser authenticates institutional emails', () => {
-  const res = authenticateAlumniUser("laura.vila@itaeb.cat", OFFICIAL_REGISTRY_SAMPLE);
+test('registerNewAlumni rejects @itaeb.cat email as student account expires', () => {
+  const res = registerNewAlumni({
+    nomCognoms: "Jordi Ferrer",
+    dni: "46738921B",
+    correu: "jordi.ferrer@itaeb.cat",
+    contrasenya: "secreta123",
+    anyGraduacio: "2022",
+    especialitat: "Sonorització per a arts escèniques i espectacles",
+    sectorsInteres: ["Sonorització per arts escèniques"],
+    notificacionsCorreu: true,
+  }, OFFICIAL_REGISTRY_SAMPLE);
+  assert.equal(res.success, false);
+  assert.ok(res.reason?.includes("no pot ser del domini @itaeb.cat"));
+});
+
+test('registerNewAlumni successfully verifies matching alumni with personal email', () => {
+  const res = registerNewAlumni({
+    nomCognoms: "Jordi Ferrer",
+    dni: "46738921B",
+    correu: "jordi.ferrer@gmail.com",
+    contrasenya: "secreta123",
+    anyGraduacio: "2022",
+    especialitat: "Sonorització per a arts escèniques i espectacles",
+    sectorsInteres: ["Sonorització per arts escèniques"],
+    notificacionsCorreu: true,
+  }, OFFICIAL_REGISTRY_SAMPLE);
   assert.equal(res.success, true);
-  assert.equal(res.user?.isMemberOfAlumniGroup, true);
+  assert.equal(res.autoAddedToGroup, true);
+  assert.equal(res.newRecord?.verificat, true);
 });
 
 test('parseCSV correctly handles quotes with commas and multiline content', () => {

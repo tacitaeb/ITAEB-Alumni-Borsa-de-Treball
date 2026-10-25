@@ -86,12 +86,82 @@ export function verifyAlumniAgainstRegistry(
   };
 }
 
+export const ALUMNI_FORM_SECTORS: string[] = [
+  "Il·luminació per arts escèniques",
+  "Sonorització per arts escèniques",
+  "Maquinària escènica",
+  "Producció d’audiovisuals i espectacles",
+  "Realització d’audiovisuals i espectacles",
+  "Postproducció",
+  "Motion Graphics",
+  "Muntatge d’esdeveniments",
+  "Vídeo Discjòquei",
+  "Interpretació",
+  "Creació de continguts",
+];
+
+export const INITIAL_REGISTERED_ALUMNI: AlumniRecord[] = [
+  {
+    id: 'alu-001',
+    marcaTemps: '15/07/2026 10:14:22',
+    nomCognoms: 'Marc Martínez Soler',
+    dni: '47812903K',
+    correu: 'marc.martinez@gmail.com',
+    contrasenya: 'itaeb2024',
+    anyGraduacio: '2024',
+    especialitat: "Il·luminació, captació i tractament d'imatge",
+    sectorsInteres: ["Il·luminació per arts escèniques", "Muntatge d’esdeveniments"],
+    notificacionsCorreu: true,
+    verificat: true,
+  },
+  {
+    id: 'alu-002',
+    marcaTemps: '20/07/2026 12:30:15',
+    nomCognoms: 'Laura Vila Garcia',
+    dni: '39482104P',
+    correu: 'laura.vila@gmail.com',
+    contrasenya: 'itaeb2023',
+    anyGraduacio: '2023',
+    especialitat: 'Sonorització per a arts escèniques i espectacles',
+    sectorsInteres: ['Sonorització per arts escèniques'],
+    notificacionsCorreu: true,
+    verificat: true,
+  },
+  {
+    id: 'alu-003',
+    marcaTemps: '01/09/2026 09:45:00',
+    nomCognoms: 'Pol Puig Roig',
+    dni: '48102934X',
+    correu: 'pol.puig@gmail.com',
+    contrasenya: 'itaeb2025',
+    anyGraduacio: '2025',
+    especialitat: "Realització de projectes d'audiovisuals i espectacles",
+    sectorsInteres: ["Realització d’audiovisuals i espectacles", "Creació de continguts", "Postproducció"],
+    notificacionsCorreu: true,
+    verificat: true,
+  },
+  {
+    id: 'alu-004',
+    marcaTemps: '12/09/2026 18:05:12',
+    nomCognoms: 'Clara Navarro Pons',
+    dni: '53891023Z',
+    correu: 'clara.navarro@hotmail.com',
+    contrasenya: 'itaeb2024',
+    anyGraduacio: '2024',
+    especialitat: "Maquinària escènica i tecnologia de l'espectacle",
+    sectorsInteres: ["Maquinària escènica", "Muntatge d’esdeveniments"],
+    notificacionsCorreu: true,
+    verificat: true,
+  }
+];
+
 /**
- * Autentica un alumne pel seu DNI o correu electrònic oficial
+ * Autentica un alumne amb el correu personal triat al formulari d'alta i la contrasenya
  */
-export function authenticateAlumniUser(
-  identifier: string,
-  registry: OfficialAlumniEntry[]
+export function authenticateWithCredentials(
+  email: string,
+  password: string,
+  registeredAlumni: AlumniRecord[]
 ): {
   success: boolean;
   user?: {
@@ -102,17 +172,19 @@ export function authenticateAlumniUser(
   };
   reason?: string;
 } {
-  const clean = identifier.trim();
-  if (!clean) {
-    return { success: false, reason: 'Cal indicar el DNI o correu electrònic' };
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanPass = password.trim();
+
+  if (!cleanEmail || !cleanPass) {
+    return { success: false, reason: 'Cal indicar el correu electrònic i la contrasenya.' };
   }
 
-  // 1. Coordinador / Admin de l'ITAEB
-  if (clean.toLowerCase() === 'tac@itaeb.cat' || clean.toLowerCase() === 'empresa@itaeb.cat') {
+  // 1. Accés administrador / coordinador
+  if (cleanEmail === 'tac@itaeb.cat' || cleanEmail === 'empresa@itaeb.cat') {
     return {
       success: true,
       user: {
-        email: clean.toLowerCase(),
+        email: cleanEmail,
         name: 'Coordinador Digital ITAEB',
         isMemberOfAlumniGroup: true,
         role: 'coordinador',
@@ -120,42 +192,106 @@ export function authenticateAlumniUser(
     };
   }
 
-  // 2. Correu d'alumni institucional (@itaeb.cat) o grup alumni@itaeb.cat
-  if (clean.toLowerCase().endsWith('@itaeb.cat')) {
-    const username = clean.split('@')[0];
-    const formattedName = username.charAt(0).toUpperCase() + username.slice(1).replace('.', ' ');
+  // 2. Comprovació d'alumni registrat pel correu personal i contrasenya
+  const alumni = registeredAlumni.find(a => a.correu.trim().toLowerCase() === cleanEmail);
+
+  if (!alumni) {
     return {
-      success: true,
-      user: {
-        email: clean.toLowerCase(),
-        name: `${formattedName} (Alumni ITAEB)`,
-        isMemberOfAlumniGroup: true,
-        role: 'alumni',
-      },
+      success: false,
+      reason: `El correu "${cleanEmail}" no consta com a alumni donat d'alta a la Borsa. Si ets graduat/da de l'ITAEB, has d'omplir el formulari d'alta. Recorda que no pot ser un correu @itaeb.cat.`,
     };
   }
 
-  // 3. Comprovació per DNI contra el Registre Oficial
-  const cleanDNI = normalizeDNI(clean);
-  const matchedStudent = registry.find(e => normalizeDNI(e.dni) === cleanDNI);
-
-  if (matchedStudent) {
+  if (alumni.contrasenya !== cleanPass) {
     return {
-      success: true,
-      user: {
-        email: `${normalizeText(matchedStudent.nom)}.${normalizeText(matchedStudent.cognoms).split(' ')[0]}@alumni.itaeb.cat`,
-        name: `${matchedStudent.nom} ${matchedStudent.cognoms}`,
-        isMemberOfAlumniGroup: true,
-        role: 'alumni',
-      },
+      success: false,
+      reason: 'La contrasenya introduïda no és correcta per a aquest correu.',
     };
   }
 
-  // 4. No trobat
   return {
-    success: false,
-    reason: `El document o correu "${clean}" no consta com a alumni donat d'alta a la Borsa de Treball de l'ITAEB. Si ets graduat/da, has d'omplir primer el formulari oficial d'alta d'exalumnes.`,
+    success: true,
+    user: {
+      email: alumni.correu,
+      name: alumni.nomCognoms,
+      isMemberOfAlumniGroup: true,
+      role: 'alumni',
+    },
   };
+}
+
+/**
+ * Valida i dona d'alta un nou alumni al sistema
+ */
+export function registerNewAlumni(
+  data: {
+    nomCognoms: string;
+    dni: string;
+    correu: string;
+    contrasenya: string;
+    anyGraduacio: string;
+    especialitat: string;
+    sectorsInteres: string[];
+    notificacionsCorreu: boolean;
+  },
+  registry: OfficialAlumniEntry[]
+): {
+  success: boolean;
+  newRecord?: AlumniRecord;
+  reason?: string;
+  autoAddedToGroup?: boolean;
+} {
+  const cleanEmail = data.correu.trim().toLowerCase();
+
+  // El correu NO pot ser @itaeb.cat
+  if (cleanEmail.endsWith('@itaeb.cat')) {
+    return {
+      success: false,
+      reason: "El correu electrònic no pot ser del domini @itaeb.cat, ja que aquest compte es dona de baixa en finalitzar els estudis. Escriu el teu correu personal (Gmail, Outlook, etc.).",
+    };
+  }
+
+  if (!data.contrasenya || data.contrasenya.trim().length < 4) {
+    return {
+      success: false,
+      reason: "La contrasenya ha de tenir com a mínim 4 caràcters.",
+    };
+  }
+
+  // Verificació amb el registre acadèmic oficial
+  const verification = verifyAlumniAgainstRegistry(data.dni, data.especialitat, registry);
+
+  const now = new Date();
+  const timestamp = `${now.toLocaleDateString('ca-ES')} ${now.toLocaleTimeString('ca-ES')}`;
+
+  const newRecord: AlumniRecord = {
+    id: `alu-${Date.now()}`,
+    marcaTemps: timestamp,
+    nomCognoms: data.nomCognoms.trim(),
+    dni: normalizeDNI(data.dni),
+    correu: cleanEmail,
+    contrasenya: data.contrasenya.trim(),
+    anyGraduacio: data.anyGraduacio.trim(),
+    especialitat: data.especialitat.trim(),
+    sectorsInteres: data.sectorsInteres,
+    notificacionsCorreu: data.notificacionsCorreu,
+    verificat: verification.verified,
+  };
+
+  if (verification.verified) {
+    return {
+      success: true,
+      newRecord,
+      autoAddedToGroup: true,
+    };
+  } else {
+    return {
+      success: true, // Registrat per a revisió manual pel coordinador a empresa@itaeb.cat
+      newRecord,
+      autoAddedToGroup: false,
+      reason: verification.reason || "Les dades no coincideixen automàticament i s'han enviat a revisió manual pel Coordinador d'Estada a l'Empresa.",
+    };
+  }
 }
 
 /**
