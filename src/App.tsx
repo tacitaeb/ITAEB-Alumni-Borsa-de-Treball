@@ -9,10 +9,13 @@ import { CompaniesView } from './components/CompaniesView';
 import { OffersView } from './components/OffersView';
 import { CoordinatorView } from './components/CoordinatorView';
 import { AccessDenied } from './components/AccessDenied';
+import { LoginModal } from './components/LoginModal';
 import { INITIAL_OFFERS } from './utils/jobData';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageId>('inici');
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+
   const [offers, setOffers] = useState<JobOffer[]>(() => {
     try {
       const saved = localStorage.getItem('itaeb_offers');
@@ -25,15 +28,28 @@ export default function App() {
 
   const [selectedOffer, setSelectedOffer] = useState<JobOffer | null>(null);
 
-  // Default session: verified alumni member of alumni@itaeb.cat
-  const [userSession, setUserSession] = useState<UserSession>({
-    email: 'alumni.verificat@itaeb.cat',
-    name: 'Marc Martínez (Alumni ITAEB)',
-    isMemberOfAlumniGroup: true,
-    role: 'alumni',
+  // Per defecte: visitant NO autenticat (accés protegit fins que no s'identifiqui com a alumni)
+  const [userSession, setUserSession] = useState<UserSession>(() => {
+    try {
+      const saved = localStorage.getItem('itaeb_user_session');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed.isMemberOfAlumniGroup === 'boolean') {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading stored session:', e);
+    }
+    return {
+      email: '',
+      name: 'Visitant no identificat',
+      isMemberOfAlumniGroup: false,
+      role: 'convidat',
+    };
   });
 
-  // Save offers changes to localStorage
+  // Guardar canvis d'ofertes al localStorage
   useEffect(() => {
     try {
       localStorage.setItem('itaeb_offers', JSON.stringify(offers));
@@ -41,6 +57,34 @@ export default function App() {
       console.warn('Error saving offers:', e);
     }
   }, [offers]);
+
+  // Guardar canvis de sessió
+  const handleLoginSuccess = (session: UserSession) => {
+    setUserSession(session);
+    try {
+      localStorage.setItem('itaeb_user_session', JSON.stringify(session));
+    } catch (e) {
+      console.warn('Error saving session:', e);
+    }
+  };
+
+  const handleLogout = () => {
+    const guestSession: UserSession = {
+      email: '',
+      name: 'Visitant no identificat',
+      isMemberOfAlumniGroup: false,
+      role: 'convidat',
+    };
+    setUserSession(guestSession);
+    try {
+      localStorage.removeItem('itaeb_user_session');
+    } catch (e) {
+      console.warn('Error removing session:', e);
+    }
+    if (currentPage === 'ofertes') {
+      setCurrentPage('inici');
+    }
+  };
 
   // Support ?autostart=1 or direct page deep-linking
   useEffect(() => {
@@ -50,13 +94,15 @@ export default function App() {
       setCurrentPage(pageParam);
     }
     const roleParam = params.get('role');
-    if (roleParam === 'guest' || roleParam === 'unverified') {
-      setUserSession({
-        email: 'convidat@extern.cat',
-        name: 'Visitant Extern',
-        isMemberOfAlumniGroup: false,
-        role: 'convidat',
+    if (roleParam === 'alumni') {
+      handleLoginSuccess({
+        email: 'alumni.verificat@itaeb.cat',
+        name: 'Marc Martínez (Alumni ITAEB)',
+        isMemberOfAlumniGroup: true,
+        role: 'alumni',
       });
+    } else if (roleParam === 'guest' || roleParam === 'unverified') {
+      handleLogout();
     }
   }, []);
 
@@ -79,7 +125,6 @@ export default function App() {
   };
 
   const handleRefreshData = () => {
-    // Reset to official initial dataset
     setOffers(INITIAL_OFFERS);
     localStorage.removeItem('itaeb_offers');
   };
@@ -92,6 +137,8 @@ export default function App() {
             onNavigate={setCurrentPage}
             offers={offers}
             onSelectOffer={setSelectedOffer}
+            isMemberOfAlumniGroup={userSession.isMemberOfAlumniGroup}
+            onOpenLogin={() => setLoginModalOpen(true)}
           />
         );
 
@@ -109,14 +156,7 @@ export default function App() {
         if (!userSession.isMemberOfAlumniGroup) {
           return (
             <AccessDenied
-              onSimulateAlumniLogin={() => {
-                setUserSession({
-                  email: 'alumni.verificat@itaeb.cat',
-                  name: 'Marc Martínez (Alumni ITAEB)',
-                  isMemberOfAlumniGroup: true,
-                  role: 'alumni',
-                });
-              }}
+              onLoginSuccess={handleLoginSuccess}
               onGoToAlumniInfo={() => setCurrentPage('alumni')}
             />
           );
@@ -145,6 +185,8 @@ export default function App() {
             onNavigate={setCurrentPage}
             offers={offers}
             onSelectOffer={setSelectedOffer}
+            isMemberOfAlumniGroup={userSession.isMemberOfAlumniGroup}
+            onOpenLogin={() => setLoginModalOpen(true)}
           />
         );
     }
@@ -156,8 +198,10 @@ export default function App() {
         currentPage={currentPage}
         onNavigate={setCurrentPage}
         userSession={userSession}
-        onChangeUserSession={setUserSession}
+        onChangeUserSession={handleLoginSuccess}
         openOffersCount={openOffersCount}
+        onOpenLogin={() => setLoginModalOpen(true)}
+        onLogout={handleLogout}
       />
 
       <main className="flex-1">
@@ -165,6 +209,13 @@ export default function App() {
       </main>
 
       <Footer onNavigate={setCurrentPage} />
+
+      <LoginModal
+        isOpen={loginModalOpen}
+        onClose={() => setLoginModalOpen(false)}
+        onLoginSuccess={handleLoginSuccess}
+        onGoToRegistration={() => setCurrentPage('alumni')}
+      />
     </div>
   );
 }

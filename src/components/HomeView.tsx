@@ -18,16 +18,22 @@ import {
 } from 'lucide-react';
 import { OFFICIAL_FORMS } from '../utils/jobData';
 
+import { Lock, UserCheck } from 'lucide-react';
+
 interface HomeViewProps {
   onNavigate: (page: PageId) => void;
   offers: JobOffer[];
   onSelectOffer: (offer: JobOffer) => void;
+  isMemberOfAlumniGroup: boolean;
+  onOpenLogin: () => void;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
   onNavigate,
   offers,
   onSelectOffer,
+  isMemberOfAlumniGroup,
+  onOpenLogin,
 }) => {
   const openOffers = offers.filter(o => o.estat === 'Oberta');
   const recentOffers = openOffers.slice(0, 3);
@@ -142,90 +148,126 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </section>
 
-      {/* Recent Open Offers Section */}
+      {/* Recent Open Offers Section - Protected */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+        {isMemberOfAlumniGroup ? (
           <div>
-            <div className="flex items-center gap-2 text-sky-700 font-semibold text-xs uppercase tracking-wider">
-              <Briefcase className="w-4 h-4" />
-              <span>Convocatòries Vigents</span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1">
-              Últimes ofertes publicades
-            </h2>
-            <p className="text-sm text-slate-600 mt-1">
-              Actualitzades en temps real des de la base de dades oficial de l'ITAEB.
-            </p>
-          </div>
-
-          <button
-            onClick={() => onNavigate('ofertes')}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-sky-700 hover:text-sky-900 cursor-pointer group"
-          >
-            <span>Veure totes les {openOffers.length} ofertes</span>
-            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {recentOffers.map(offer => (
-            <div
-              key={offer.id}
-              onClick={() => {
-                onSelectOffer(offer);
-                onNavigate('ofertes');
-              }}
-              className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between group hover:border-sky-300"
-            >
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
               <div>
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    {offer.estat}
-                  </span>
-                  <span className="text-[11px] text-slate-500 flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    {offer.dataAlta}
-                  </span>
+                <div className="flex items-center gap-2 text-sky-700 font-semibold text-xs uppercase tracking-wider">
+                  <Briefcase className="w-4 h-4" />
+                  <span>Convocatòries Vigents</span>
                 </div>
-
-                <h3 className="font-bold text-slate-900 text-lg group-hover:text-sky-700 transition leading-snug mb-1">
-                  {offer.llocTreball}
-                </h3>
-                <div className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-1.5">
-                  <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span>{offer.empresa}</span>
-                </div>
-
-                <p className="text-xs text-slate-600 line-clamp-3 mb-4 leading-relaxed">
-                  {offer.descripcio}
+                <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1">
+                  Últimes ofertes publicades
+                </h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  Actualitzades en temps real des de la base de dades oficial de l'ITAEB.
                 </p>
               </div>
 
-              <div>
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  {offer.sector.map((sec, idx) => (
-                    <span
-                      key={idx}
-                      className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-700"
-                    >
-                      {sec}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-amber-500" />
-                    Límit: {offer.dataLimitCV}
-                  </span>
-                  <span className="font-semibold text-sky-700 group-hover:underline">
-                    Detalls →
-                  </span>
-                </div>
-              </div>
+              <button
+                onClick={() => onNavigate('ofertes')}
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-sky-700 hover:text-sky-900 cursor-pointer group"
+              >
+                <span>Veure totes les {openOffers.length} ofertes</span>
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </button>
             </div>
-          ))}
-        </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {recentOffers.map(offer => (
+                <div
+                  key={offer.id}
+                  onClick={() => {
+                    onSelectOffer(offer);
+                    onNavigate('ofertes');
+                  }}
+                  className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between group hover:border-sky-300"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        {offer.estat}
+                      </span>
+                      <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {offer.dataAlta}
+                      </span>
+                    </div>
+
+                    <h3 className="font-bold text-slate-900 text-lg group-hover:text-sky-700 transition leading-snug mb-1">
+                      {offer.llocTreball}
+                    </h3>
+                    <div className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span>{offer.empresa}</span>
+                    </div>
+
+                    <p className="text-xs text-slate-600 line-clamp-3 mb-4 leading-relaxed">
+                      {offer.descripcio}
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      {offer.sector.map((sec, idx) => (
+                        <span
+                          key={idx}
+                          className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-700"
+                        >
+                          {sec}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                        Límit: {offer.dataLimitCV}
+                      </span>
+                      <span className="font-semibold text-sky-700 group-hover:underline">
+                        Detalls →
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-8 sm:p-10 border border-slate-700 shadow-xl flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="space-y-3 max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold">
+                <Lock className="w-3.5 h-3.5" />
+                <span>Catàleg d'ofertes protegit (Exclusiu Alumni)</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-white">
+                Hi ha {openOffers.length} ofertes de treball actives
+              </h2>
+              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
+                Segons la normativa del centre, les convocatòries laborals i les dades de contacte de les empreses només són visibles per als exalumnes registrats al grup <code className="text-sky-300 bg-slate-800 px-1 py-0.5 rounded font-mono">alumni@itaeb.cat</code>.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row md:flex-col gap-3 w-full sm:w-auto shrink-0">
+              <button
+                onClick={onOpenLogin}
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs sm:text-sm transition shadow-lg cursor-pointer"
+              >
+                <UserCheck className="w-4 h-4" />
+                <span>Identifica't per veure les ofertes</span>
+              </button>
+
+              <button
+                onClick={() => onNavigate('alumni')}
+                className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-medium text-xs border border-slate-700 transition cursor-pointer"
+              >
+                <span>Com donar-se d'alta com a Alumni</span>
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Sectors Professional ITAEB */}

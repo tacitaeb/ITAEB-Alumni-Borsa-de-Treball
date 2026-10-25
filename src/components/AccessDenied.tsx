@@ -1,108 +1,139 @@
-import React from 'react';
-import { ShieldAlert, ExternalLink, Mail, CheckCircle, ArrowRight } from 'lucide-react';
-import { OFFICIAL_FORMS, OFFICIAL_EMAILS } from '../utils/jobData';
+import React, { useState } from 'react';
+import { ShieldAlert, ExternalLink, Mail, CheckCircle, ArrowRight, Lock, AlertCircle, KeyRound } from 'lucide-react';
+import { OFFICIAL_FORMS, OFFICIAL_EMAILS, authenticateAlumniUser, OFFICIAL_REGISTRY_SAMPLE } from '../utils/jobData';
+import { UserSession } from '../types';
 
 interface AccessDeniedProps {
-  onSimulateAlumniLogin: () => void;
+  onLoginSuccess: (session: UserSession) => void;
   onGoToAlumniInfo: () => void;
 }
 
 export const AccessDenied: React.FC<AccessDeniedProps> = ({
-  onSimulateAlumniLogin,
+  onLoginSuccess,
   onGoToAlumniInfo,
 }) => {
+  const [identifier, setIdentifier] = useState('');
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const handleQuickLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+
+    const result = authenticateAlumniUser(identifier, OFFICIAL_REGISTRY_SAMPLE);
+    if (result.success && result.user) {
+      onLoginSuccess(result.user);
+    } else {
+      setLoginError(result.reason || "DNI o correu no trobat al registre oficial.");
+    }
+  };
+
   return (
-    <div className="min-h-[70vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-50">
-      <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+    <div className="min-h-[75vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-50">
+      <div className="max-w-2xl w-full bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
         {/* Warning Header */}
-        <div className="bg-gradient-to-r from-rose-600 to-amber-600 p-6 text-white text-center sm:text-left flex flex-col sm:flex-row items-center gap-4">
-          <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-xs shrink-0">
-            <ShieldAlert className="w-10 h-10 text-white" />
+        <div className="bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 p-6 sm:p-8 text-white text-center sm:text-left flex flex-col sm:flex-row items-center gap-5 border-b border-rose-900/50">
+          <div className="p-3.5 bg-rose-500/20 text-rose-300 rounded-2xl shrink-0 border border-rose-500/30">
+            <Lock className="w-8 h-8" />
           </div>
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider bg-black/20 px-2.5 py-0.5 rounded-full inline-block mb-1">
-              Accés Restringit
+            <span className="text-[11px] font-bold uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2.5 py-0.5 rounded-full inline-block mb-1.5">
+              Accés Restringit a la Borsa
             </span>
             <h2 className="text-xl sm:text-2xl font-bold leading-tight">
               Només per a membres de alumni@itaeb.cat
             </h2>
-            <p className="text-sm text-rose-100 mt-1">
-              No s'ha detectat que la teva sessió pertanyi al grup oficial d'exalumnes de l'ITAEB.
+            <p className="text-xs sm:text-sm text-slate-300 mt-1">
+              Les ofertes de treball estan reservades exclusivament als exalumnes titulats de l'ITAEB donats d'alta.
             </p>
           </div>
         </div>
 
         {/* Content body */}
         <div className="p-6 sm:p-8 space-y-6">
-          <div className="prose text-slate-600 text-sm leading-relaxed">
-            <p>
-              D'acord amb la normativa de la <strong>Borsa de Treball de l'ITAEB</strong>, l'accés a les ofertes de treball està reservat exclusivament als graduats oficials de l'Institut de Tècniques Audiovisuals i de l'Espectacle de Barcelona que han completat el procés d'alta.
+          {/* Direct Login Box for registered alumni */}
+          <div className="p-5 rounded-2xl bg-sky-50/70 border border-sky-200 space-y-3">
+            <div className="flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-sky-700" />
+              <h3 className="font-bold text-slate-900 text-sm">
+                Ja ets Alumni de l'ITAEB? Identifica't per entrar
+              </h3>
+            </div>
+            <p className="text-xs text-slate-600">
+              Introdueix el teu DNI/NIE o correu electrònic oficial per desbloquejar les ofertes de treball:
             </p>
+
+            <form onSubmit={handleQuickLogin} className="flex flex-col sm:flex-row gap-2 pt-1">
+              <input
+                type="text"
+                required
+                value={identifier}
+                onChange={e => {
+                  setIdentifier(e.target.value);
+                  if (loginError) setLoginError(null);
+                }}
+                placeholder="El teu DNI (ex: 47812903K) o correu"
+                className="flex-1 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+              <button
+                type="submit"
+                className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs transition shadow-xs cursor-pointer shrink-0"
+              >
+                Accedir a la Borsa
+              </button>
+            </form>
+
+            {loginError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span>{loginError}</span>
+              </div>
+            )}
           </div>
 
           {/* Action steps */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl border border-sky-100 bg-sky-50/60 flex flex-col justify-between">
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between">
               <div>
-                <span className="text-xs font-semibold text-sky-800 uppercase tracking-wider block mb-1">
-                  Opció 1: Ets exalumne/a?
+                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                  Nou a la Borsa?
                 </span>
                 <h3 className="font-bold text-slate-900 text-sm mb-1.5">
-                  Dona't d'alta a la Borsa de Treball
+                  Inscriu-te al Formulari d'Alta
                 </h3>
                 <p className="text-xs text-slate-600 mb-3">
-                  Omple el formulari oficial amb el teu DNI i Especialitat cursada. El sistema et verificarà automàticament i t'afegirà al grup <code className="text-sky-700 bg-white px-1 py-0.5 rounded">alumni@itaeb.cat</code>.
+                  Omple el formulari oficial amb el teu DNI i Especialitat per ser verificat i afegit a <code className="text-sky-700 font-semibold">alumni@itaeb.cat</code>.
                 </p>
               </div>
               <a
                 href={OFFICIAL_FORMS.altaExalumnes}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700 transition shadow-xs"
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition shadow-xs"
               >
-                <span>Formulari d'alta d'exalumnes</span>
+                <span>Formulari oficial d'alta</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
             </div>
 
-            <div className="p-4 rounded-xl border border-amber-100 bg-amber-50/60 flex flex-col justify-between">
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between">
               <div>
-                <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider block mb-1">
-                  Opció 2: Ja et vas registrar?
+                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                  Promocions antigues
                 </span>
                 <h3 className="font-bold text-slate-900 text-sm mb-1.5">
-                  Verificació manual o suport
+                  Verificació manual
                 </h3>
                 <p className="text-xs text-slate-600 mb-3">
-                  Si ets d'una promoció antiga o hi ha hagut alguna discrepància en el DNI o l'especialitat, el coordinador d'Estada a l'Empresa et donarà d'alta manualment.
+                  Si no consta el teu expedient a la base digital, el coordinador d'Estada a l'Empresa t'activarà manualment.
                 </p>
               </div>
               <a
-                href={`mailto:${OFFICIAL_EMAILS.avisosAdmin}?subject=Sol·licitud%20alta%20alumni%20ITAEB&body=Hola,%20sóc%20exalumne/a%20de%20l'ITAEB%20i%20demano%20la%20verificació%20manual%20per%20accedir%20a%20la%20Borsa%20de%20Treball.%20DNI:%20`}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-white border border-amber-300 text-amber-900 text-xs font-semibold hover:bg-amber-100 transition shadow-xs"
+                href={`mailto:${OFFICIAL_EMAILS.avisosAdmin}?subject=Sol·licitud%20alta%20alumni%20ITAEB`}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-white border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-100 transition shadow-xs"
               >
-                <Mail className="w-3.5 h-3.5 text-amber-700" />
+                <Mail className="w-3.5 h-3.5 text-slate-500" />
                 <span>Contactar empresa@itaeb.cat</span>
               </a>
-            </div>
-          </div>
-
-          {/* Quick simulator helper */}
-          <div className="p-4 rounded-xl bg-slate-100 border border-slate-200">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div>
-                <h4 className="text-xs font-bold text-slate-900">Estàs provant la plataforma com a avaluador o coordinador?</h4>
-                <p className="text-xs text-slate-600">
-                  Pots activar immediatament el perfil simulat d'Alumni verificat per comprovar el catàleg complet d'ofertes.
-                </p>
-              </div>
-              <button
-                onClick={onSimulateAlumniLogin}
-                className="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg transition shadow-xs cursor-pointer"
-              >
-                <CheckCircle className="w-4 h-4 text-emerald-400" />
-                <span>Simular sessió Alumni</span>
-              </button>
             </div>
           </div>
 

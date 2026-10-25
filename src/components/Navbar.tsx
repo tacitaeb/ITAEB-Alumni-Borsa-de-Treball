@@ -1,6 +1,5 @@
 import React from 'react';
-import { PageId, UserSession } from '../types';
-import { Briefcase, Info, GraduationCap, Building2, Shield, Menu, X, CheckCircle2, AlertTriangle, UserCheck } from 'lucide-react';
+import { Briefcase, Info, GraduationCap, Building2, Shield, Menu, X, CheckCircle2, AlertTriangle, UserCheck, Lock, LogOut } from 'lucide-react';
 
 interface NavbarProps {
   currentPage: PageId;
@@ -8,6 +7,8 @@ interface NavbarProps {
   userSession: UserSession;
   onChangeUserSession: (session: UserSession) => void;
   openOffersCount: number;
+  onOpenLogin: () => void;
+  onLogout: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -16,11 +17,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   userSession,
   onChangeUserSession,
   openOffersCount,
+  onOpenLogin,
+  onLogout,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [sessionDropdownOpen, setSessionDropdownOpen] = React.useState(false);
 
-  const navLinks: { id: PageId; label: string; icon: React.ReactNode; badge?: number }[] = [
+  const navLinks: { id: PageId; label: string; icon: React.ReactNode; badge?: number; locked?: boolean }[] = [
     { id: 'inici', label: 'Inici', icon: null },
     { id: 'sobre', label: 'Sobre la borsa', icon: <Info className="w-4 h-4" /> },
     { id: 'alumni', label: 'Per als alumni', icon: <GraduationCap className="w-4 h-4" /> },
@@ -30,6 +33,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       label: 'Ofertes de treball',
       icon: <Briefcase className="w-4 h-4" />,
       badge: openOffersCount,
+      locked: !userSession.isMemberOfAlumniGroup,
     },
     { id: 'coordinador', label: 'Coordinador Digital', icon: <Shield className="w-4 h-4" /> },
   ];
@@ -51,29 +55,41 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden md:inline font-medium text-slate-300">Borsa de Treball Oficial</span>
           </div>
 
-          <div className="relative flex items-center gap-3">
-            <span className="text-slate-400 hidden sm:inline">Estat d'accés:</span>
+          <div className="relative flex items-center gap-2 sm:gap-3">
+            {userSession.isMemberOfAlumniGroup ? (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-950 text-emerald-300 border border-emerald-800">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                  <span className="max-w-[140px] sm:max-w-none truncate">{userSession.name}</span>
+                </span>
+                <button
+                  onClick={onLogout}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                  title="Tancar sessió"
+                >
+                  <LogOut className="w-3 h-3" />
+                  <span>Sortir</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onOpenLogin}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-sky-500 hover:bg-sky-400 text-slate-950 shadow-xs transition cursor-pointer"
+                >
+                  <Lock className="w-3 h-3" />
+                  <span>Accés Alumni (Identifica't)</span>
+                </button>
+              </div>
+            )}
+
+            {/* Quick simulator dropdown toggle */}
             <button
               onClick={() => setSessionDropdownOpen(!sessionDropdownOpen)}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium transition cursor-pointer ${
-                userSession.isMemberOfAlumniGroup
-                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-800 hover:bg-emerald-900'
-                  : 'bg-rose-950 text-rose-300 border border-rose-800 hover:bg-rose-900'
-              }`}
-              title="Canviar simulació d'accés alumni"
+              className="text-[10px] text-slate-400 hover:text-slate-200 underline cursor-pointer"
+              title="Canviar rol o simular un altre usuari"
             >
-              {userSession.isMemberOfAlumniGroup ? (
-                <>
-                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                  <span>Alumni verificat ({userSession.email})</span>
-                </>
-              ) : (
-                <>
-                  <AlertTriangle className="w-3 h-3 text-rose-400" />
-                  <span>Sense accés (No és membre de alumni@itaeb.cat)</span>
-                </>
-              )}
-              <span className="ml-1 text-[10px] text-slate-400">▼</span>
+              [Canviar rol]
             </button>
 
             {sessionDropdownOpen && (

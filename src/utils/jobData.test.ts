@@ -5,6 +5,7 @@ import {
   normalizeDNI,
   doSectorsMatch,
   verifyAlumniAgainstRegistry,
+  authenticateAlumniUser,
   parseCSV,
   OFFICIAL_REGISTRY_SAMPLE
 } from './jobData';
@@ -58,6 +59,25 @@ test('verifyAlumniAgainstRegistry rejects matching DNI with mismatched specialty
   );
   assert.equal(result.verified, false);
   assert.ok(result.reason?.includes("no coincideix exactament"));
+});
+
+test('authenticateAlumniUser authenticates registered student by DNI', () => {
+  const res = authenticateAlumniUser("47812903K", OFFICIAL_REGISTRY_SAMPLE);
+  assert.equal(res.success, true);
+  assert.equal(res.user?.name, "Marc Martínez Soler");
+  assert.equal(res.user?.isMemberOfAlumniGroup, true);
+});
+
+test('authenticateAlumniUser rejects non-registered DNI', () => {
+  const res = authenticateAlumniUser("00000000X", OFFICIAL_REGISTRY_SAMPLE);
+  assert.equal(res.success, false);
+  assert.ok(res.reason?.includes("no consta com a alumni"));
+});
+
+test('authenticateAlumniUser authenticates institutional emails', () => {
+  const res = authenticateAlumniUser("laura.vila@itaeb.cat", OFFICIAL_REGISTRY_SAMPLE);
+  assert.equal(res.success, true);
+  assert.equal(res.user?.isMemberOfAlumniGroup, true);
 });
 
 test('parseCSV correctly handles quotes with commas and multiline content', () => {

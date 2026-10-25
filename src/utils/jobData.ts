@@ -87,6 +87,78 @@ export function verifyAlumniAgainstRegistry(
 }
 
 /**
+ * Autentica un alumne pel seu DNI o correu electrònic oficial
+ */
+export function authenticateAlumniUser(
+  identifier: string,
+  registry: OfficialAlumniEntry[]
+): {
+  success: boolean;
+  user?: {
+    email: string;
+    name: string;
+    isMemberOfAlumniGroup: boolean;
+    role: 'alumni' | 'coordinador' | 'convidat';
+  };
+  reason?: string;
+} {
+  const clean = identifier.trim();
+  if (!clean) {
+    return { success: false, reason: 'Cal indicar el DNI o correu electrònic' };
+  }
+
+  // 1. Coordinador / Admin de l'ITAEB
+  if (clean.toLowerCase() === 'tac@itaeb.cat' || clean.toLowerCase() === 'empresa@itaeb.cat') {
+    return {
+      success: true,
+      user: {
+        email: clean.toLowerCase(),
+        name: 'Coordinador Digital ITAEB',
+        isMemberOfAlumniGroup: true,
+        role: 'coordinador',
+      },
+    };
+  }
+
+  // 2. Correu d'alumni institucional (@itaeb.cat) o grup alumni@itaeb.cat
+  if (clean.toLowerCase().endsWith('@itaeb.cat')) {
+    const username = clean.split('@')[0];
+    const formattedName = username.charAt(0).toUpperCase() + username.slice(1).replace('.', ' ');
+    return {
+      success: true,
+      user: {
+        email: clean.toLowerCase(),
+        name: `${formattedName} (Alumni ITAEB)`,
+        isMemberOfAlumniGroup: true,
+        role: 'alumni',
+      },
+    };
+  }
+
+  // 3. Comprovació per DNI contra el Registre Oficial
+  const cleanDNI = normalizeDNI(clean);
+  const matchedStudent = registry.find(e => normalizeDNI(e.dni) === cleanDNI);
+
+  if (matchedStudent) {
+    return {
+      success: true,
+      user: {
+        email: `${normalizeText(matchedStudent.nom)}.${normalizeText(matchedStudent.cognoms).split(' ')[0]}@alumni.itaeb.cat`,
+        name: `${matchedStudent.nom} ${matchedStudent.cognoms}`,
+        isMemberOfAlumniGroup: true,
+        role: 'alumni',
+      },
+    };
+  }
+
+  // 4. No trobat
+  return {
+    success: false,
+    reason: `El document o correu "${clean}" no consta com a alumni donat d'alta a la Borsa de Treball de l'ITAEB. Si ets graduat/da, has d'omplir primer el formulari oficial d'alta d'exalumnes.`,
+  };
+}
+
+/**
  * Parser de CSV compatible amb cometes i salts de línia dins de cel·les.
  */
 export function parseCSV(csvText: string): string[][] {
