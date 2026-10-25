@@ -1,0 +1,6 @@
+{
+  "name": "ITAEB Alumni Borsa de Treball",
+  "description": "Plataforma de la borsa de treball oficial per a exalumnes de l'ITAEB (Institut de Tècniques Audiovisuals i de l'Espectacle de Barcelona).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
