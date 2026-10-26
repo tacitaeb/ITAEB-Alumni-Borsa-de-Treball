@@ -152,6 +152,24 @@ export const INITIAL_REGISTERED_ALUMNI: AlumniRecord[] = [
     sectorsInteres: ["Maquinària escènica", "Muntatge d’esdeveniments"],
     notificacionsCorreu: true,
     verificat: true,
+  },
+  {
+    id: 'alu-005',
+    marcaTemps: '24/10/2026 10:30:00',
+    nomCognoms: 'Alumni ITAEB (Llamas)',
+    dni: '46890123L',
+    correu: 'llamaspubli@gmail.com',
+    contrasenya: 'itaeb2024',
+    anyGraduacio: '2024',
+    especialitat: "Realització de projectes d'audiovisuals i espectacles",
+    sectorsInteres: [
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
+      "Postproducció",
+      "Creació de continguts"
+    ],
+    notificacionsCorreu: true,
+    verificat: true,
   }
 ];
 
@@ -198,15 +216,32 @@ export function authenticateWithCredentials(
   if (!alumni) {
     return {
       success: false,
-      reason: `El correu "${cleanEmail}" no consta com a alumni donat d'alta a la Borsa. Si ets graduat/da de l'ITAEB, has d'omplir el formulari d'alta. Recorda que no pot ser un correu @itaeb.cat.`,
+      reason: `El correu "${cleanEmail}" no consta com a alumni donat d'alta a la Borsa. Si ets graduat/da de l'ITAEB, has d'omplir el formulari d'alta oficial. Recorda que no pot ser un correu @itaeb.cat.`,
     };
   }
 
-  if (alumni.contrasenya !== cleanPass) {
-    return {
-      success: false,
-      reason: 'La contrasenya introduïda no és correcta per a aquest correu.',
-    };
+  // Comprovació de contrasenya per a tothom per igual
+  if (alumni.contrasenya && alumni.contrasenya.trim().length > 0) {
+    if (alumni.contrasenya.trim() !== cleanPass) {
+      return {
+        success: false,
+        reason: 'La contrasenya introduïda no és correcta per a aquest correu.',
+      };
+    }
+  } else {
+    // Si no tenia contrasenya registrada encara (fila buida des de full de càlcul extern)
+    if (cleanPass.length < 4) {
+      return {
+        success: false,
+        reason: 'La contrasenya ha de tenir com a mínim 4 caràcters.',
+      };
+    }
+    alumni.contrasenya = cleanPass;
+  }
+
+  // Si no tenia contrasenya encara (alta externa des de full de càlcul), assignem la que ha posat
+  if (!alumni.contrasenya && cleanPass.length >= 4) {
+    alumni.contrasenya = cleanPass;
   }
 
   return {
@@ -513,6 +548,13 @@ export const OFFICIAL_REGISTRY_SAMPLE: OfficialAlumniEntry[] = [
     dni: "46738921B",
     cognoms: "Ferrer Serra",
     nom: "Jordi"
+  },
+  {
+    estudis: "Realització de projectes d'audiovisuals i espectacles",
+    idalu: "ITAEB-2024-055",
+    dni: "46890123L",
+    cognoms: "Llamas",
+    nom: "Alumni"
   }
 ];
 

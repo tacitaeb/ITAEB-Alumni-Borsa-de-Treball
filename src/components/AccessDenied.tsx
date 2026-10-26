@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ExternalLink, Mail, ArrowRight, Lock, AlertCircle, KeyRound, Eye, EyeOff } from 'lucide-react';
-import { OFFICIAL_FORMS, OFFICIAL_EMAILS, authenticateWithCredentials } from '../utils/jobData';
+import { ExternalLink, Mail, ArrowRight, Lock, AlertCircle, KeyRound, Eye, EyeOff, RefreshCw, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { OFFICIAL_FORMS, OFFICIAL_EMAILS } from '../utils/jobData';
 import { UserSession, AlumniRecord } from '../types';
+import { authenticateAgainstGoogleSheet, getStoredSheetConfig } from '../utils/googleSheetsSync';
 
 interface AccessDeniedProps {
   onLoginSuccess: (session: UserSession) => void;
@@ -18,16 +19,25 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const sheetConfig = getStoredSheetConfig();
 
-  const handleQuickLogin = (e: React.FormEvent) => {
+  const handleQuickLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
+    setIsVerifying(true);
 
-    const result = authenticateWithCredentials(email, password, registeredAlumni);
-    if (result.success && result.user) {
-      onLoginSuccess(result.user);
-    } else {
-      setLoginError(result.reason || "Correu o contrasenya no vàlids.");
+    try {
+      const result = await authenticateAgainstGoogleSheet(email, password, registeredAlumni);
+      if (result.success && result.user) {
+        onLoginSuccess(result.user);
+      } else {
+        setLoginError(result.reason || "Correu electrònic o contrasenya no vàlids al full de càlcul.");
+      }
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : 'Error durant la verificació');
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -47,7 +57,7 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
               Només per a membres de alumni@itaeb.cat
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 mt-1">
-              Les ofertes de treball estan reservades exclusivament als exalumnes titulats de l'ITAEB donats d'alta.
+              Les ofertes de feina estan reservades exclusivament als exalumnes registrats al full de càlcul <strong>"ITAEB Borsa de Treball"</strong> (fulla <strong>Exalumnes</strong>).
             </p>
           </div>
         </div>
@@ -56,14 +66,19 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
         <div className="p-6 sm:p-8 space-y-6">
           {/* Direct Login Box with email and password */}
           <div className="p-5 rounded-2xl bg-sky-50/70 border border-sky-200 space-y-3">
-            <div className="flex items-center gap-2">
-              <KeyRound className="w-4 h-4 text-sky-700" />
-              <h3 className="font-bold text-slate-900 text-sm">
-                Ja ets Alumni de l'ITAEB? Identifica't per entrar
-              </h3>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-sky-700" />
+                <h3 className="font-bold text-slate-900 text-sm">
+                  Ja ets Alumni de l'ITAEB? Identifica't per entrar
+                </h3>
+              </div>
+              <span className="text-[10px] bg-sky-100 text-sky-800 font-semibold px-2 py-0.5 rounded-full">
+                Fulla: {sheetConfig.sheetName || 'Exalumnes'}
+              </span>
             </div>
             <p className="text-xs text-slate-600">
-              Introdueix el correu personal afegit al formulari d'alta (no @itaeb.cat) i la teva contrasenya:
+              Introdueix el teu correu electrònic personal (el que vas posar al formulari d'alta) i la teva contrasenya:
             </p>
 
             <form onSubmit={handleQuickLogin} className="space-y-3 pt-1">
@@ -75,13 +90,14 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
                   <input
                     type="email"
                     required
+                    disabled={isVerifying}
                     value={email}
                     onChange={e => {
                       setEmail(e.target.value);
                       if (loginError) setLoginError(null);
                     }}
-                    placeholder="Ex: marc.martinez@gmail.com"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    placeholder="nom.cognom@gmail.com"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-slate-50"
                   />
                 </div>
 
@@ -93,18 +109,19 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
                     <input
                       type={showPassword ? 'text' : 'password'}
                       required
+                      disabled={isVerifying}
                       value={password}
                       onChange={e => {
                         setPassword(e.target.value);
                         if (loginError) setLoginError(null);
                       }}
-                      placeholder="Contrasenya"
-                      className="w-full px-3.5 pr-10 py-2.5 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      placeholder="Contrasenya de registre"
+                      className="w-full px-3.5 pr-10 py-2.5 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-slate-50"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
                       aria-label={showPassword ? 'Amagar contrasenya' : 'Mostrar contrasenya'}
                     >
                       {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -116,9 +133,20 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
               <div className="flex justify-end">
                 <button
                   type="submit"
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs transition shadow-xs cursor-pointer"
+                  disabled={isVerifying}
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-75 text-white font-bold text-xs transition shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  Accedir a la Borsa
+                  {isVerifying ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Verificant a Google Sheets...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Accedir a la Borsa</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -142,7 +170,7 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
                   Inscriu-te al Formulari d'Alta
                 </h3>
                 <p className="text-xs text-slate-600 mb-3">
-                  Omple el formulari d'alta amb el teu correu personal, contrasenya, DNI i especialitat per ser verificat i afegit a <code className="text-sky-700 font-semibold">alumni@itaeb.cat</code>.
+                  Omple el formulari d'alta amb el teu correu personal (no @itaeb.cat), contrasenya, DNI i especialitat per ser afegit al full "Exalumnes" i a <code className="text-sky-700 font-semibold">alumni@itaeb.cat</code>.
                 </p>
               </div>
               <button
@@ -164,7 +192,7 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
                   Verificació manual
                 </h3>
                 <p className="text-xs text-slate-600 mb-3">
-                  Si no consta el teu expedient a la base digital, el coordinador d'Estada a l'Empresa t'activarà manualment.
+                  Si no consta el teu expedient a la base digital, el coordinador d'Estada a l'Empresa t'activarà manualment al full i al grup.
                 </p>
               </div>
               <a

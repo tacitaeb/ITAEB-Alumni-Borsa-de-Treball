@@ -11,6 +11,11 @@ import { CoordinatorView } from './components/CoordinatorView';
 import { AccessDenied } from './components/AccessDenied';
 import { LoginModal } from './components/LoginModal';
 import { INITIAL_OFFERS, INITIAL_REGISTERED_ALUMNI } from './utils/jobData';
+import {
+  getStoredSheetConfig,
+  getStoredSyncedAlumni,
+  syncAlumniFromGoogleSheet
+} from './utils/googleSheetsSync';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageId>('inici');
@@ -30,8 +35,31 @@ export default function App() {
   // Registre d'exalumnes (Full "Exalumnes" de Google Sheets)
   const [registeredAlumni, setRegisteredAlumni] = useState<AlumniRecord[]>(() => {
     try {
+      const map = new Map<string, AlumniRecord>();
+      for (const a of INITIAL_REGISTERED_ALUMNI) {
+        map.set(a.correu.trim().toLowerCase(), a);
+      }
+
+      // 1. Carregar alumnes del magatzem local
       const saved = localStorage.getItem('itaeb_registered_alumni');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved) as AlumniRecord[];
+        for (const a of parsed) {
+          const key = a.correu.trim().toLowerCase();
+          const prev = map.get(key);
+          map.set(key, prev ? { ...prev, ...a, contrasenya: a.contrasenya || prev.contrasenya } : a);
+        }
+      }
+
+      // 2. Carregar alumnes sincronitzats directament del full de càlcul Google Sheets
+      const syncedFromSheet = getStoredSyncedAlumni();
+      for (const a of syncedFromSheet) {
+        const key = a.correu.trim().toLowerCase();
+        const prev = map.get(key);
+        map.set(key, prev ? { ...prev, ...a, contrasenya: a.contrasenya || prev.contrasenya } : a);
+      }
+
+      return Array.from(map.values());
     } catch (e) {
       console.warn('Error reading registered alumni:', e);
     }
@@ -110,6 +138,31 @@ export default function App() {
   const handleRegisterAlumni = (record: AlumniRecord) => {
     setRegisteredAlumni(prev => [record, ...prev]);
   };
+
+  const handleAlumniSynced = (syncedList: AlumniRecord[]) => {
+    setRegisteredAlumni(prev => {
+      const map = new Map<string, AlumniRecord>();
+      for (const a of prev) map.set(a.correu.trim().toLowerCase(), a);
+      for (const a of syncedList) map.set(a.correu.trim().toLowerCase(), a);
+      return Array.from(map.values());
+    });
+  };
+
+  // Background Google Sheets auto-sync if configured
+  useEffect(() => {
+    const config = getStoredSheetConfig();
+    if (config.spreadsheetUrlOrId) {
+      syncAlumniFromGoogleSheet(config.spreadsheetUrlOrId, config.sheetName)
+        .then(res => {
+          if (res.success && res.alumni.length > 0) {
+            handleAlumniSynced(res.alumni);
+          }
+        })
+        .catch(err => {
+          console.warn('Auto-sync with Google Sheets notice:', err);
+        });
+    }
+  }, []);
 
   // Support ?autostart=1 or direct page deep-linking
   useEffect(() => {
@@ -208,6 +261,9 @@ export default function App() {
             offers={offers}
             onToggleOfferStatus={handleToggleOfferStatus}
             onAddOffer={handleAddOffer}
+            registeredAlumni={registeredAlumni}
+            onRegisterAlumni={handleRegisterAlumni}
+            onAlumniSynced={handleAlumniSynced}
           />
         );
 
@@ -251,6 +307,7 @@ export default function App() {
           setCurrentPage('alumni');
         }}
         registeredAlumni={registeredAlumni}
+        onAlumniSynced={handleAlumniSynced}
       />
     </div>
   );

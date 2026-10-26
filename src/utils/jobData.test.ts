@@ -82,6 +82,13 @@ test('authenticateWithCredentials rejects unregistered email', () => {
   assert.ok(res.reason?.includes("no consta com a alumni"));
 });
 
+test('authenticateWithCredentials accepts registered alumnus with correct password', () => {
+  const res = authenticateWithCredentials("marc.martinez@gmail.com", "itaeb2024", INITIAL_REGISTERED_ALUMNI);
+  assert.equal(res.success, true);
+  assert.equal(res.user?.email, "marc.martinez@gmail.com");
+  assert.equal(res.user?.isMemberOfAlumniGroup, true);
+});
+
 test('registerNewAlumni rejects @itaeb.cat email as student account expires', () => {
   const res = registerNewAlumni({
     nomCognoms: "Jordi Ferrer",

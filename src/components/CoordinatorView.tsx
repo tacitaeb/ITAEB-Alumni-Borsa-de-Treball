@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { JobOffer, OfficialAlumniEntry } from '../types';
+import { JobOffer, OfficialAlumniEntry, AlumniRecord } from '../types';
 import {
   Shield,
   FileSpreadsheet,
@@ -17,7 +17,12 @@ import {
   Search,
   CheckCircle2,
   XCircle,
-  RefreshCw
+  RefreshCw,
+  KeyRound,
+  UserCheck,
+  AlertCircle,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import {
   OFFICIAL_FORMS,
@@ -27,19 +32,125 @@ import {
   verifyAlumniAgainstRegistry,
   normalizeText
 } from '../utils/jobData';
+import {
+  getStoredSheetConfig,
+  saveStoredSheetConfig,
+  syncAlumniFromGoogleSheet,
+  authenticateAgainstGoogleSheet,
+  GoogleSheetConfig,
+  DEFAULT_SHEET_NAME,
+} from '../utils/googleSheetsSync';
 
 interface CoordinatorViewProps {
   offers: JobOffer[];
   onToggleOfferStatus: (id: string) => void;
   onAddOffer: (newOffer: JobOffer) => void;
+  registeredAlumni?: AlumniRecord[];
+  onRegisterAlumni?: (record: AlumniRecord) => void;
+  onAlumniSynced?: (alumni: AlumniRecord[]) => void;
 }
 
 export const CoordinatorView: React.FC<CoordinatorViewProps> = ({
   offers,
   onToggleOfferStatus,
   onAddOffer,
+  registeredAlumni = [],
+  onRegisterAlumni,
+  onAlumniSynced,
 }) => {
-  const [activeTab, setActiveTab] = useState<'manual' | 'gestio' | 'simulador'>('manual');
+  const [activeTab, setActiveTab] = useState<'manual' | 'gestio' | 'alumni' | 'simulador'>('manual');
+  const [alumniSearch, setAlumniSearch] = useState('');
+
+  // Google Sheets state
+  const [sheetConfig, setSheetConfig] = useState<GoogleSheetConfig>(getStoredSheetConfig);
+  const [sheetInputUrl, setSheetInputUrl] = useState(sheetConfig.spreadsheetUrlOrId || '');
+  const [sheetInputTab, setSheetInputTab] = useState(sheetConfig.sheetName || DEFAULT_SHEET_NAME);
+  const [isSyncingSheet, setIsSyncingSheet] = useState(false);
+  const [sheetFeedback, setSheetFeedback] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Quick test verification tool for coordinator
+  const [testEmail, setTestEmail] = useState('');
+  const [testPassword, setTestPassword] = useState('');
+  const [isTestingCredentials, setIsTestingCredentials] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    tested: boolean;
+    success: boolean;
+    message: string;
+    source?: string;
+  } | null>(null);
+
+  // Password visibility in table
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+
+  const togglePasswordVisibility = (id: string) => {
+    setVisiblePasswords(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleSyncGoogleSheet = async () => {
+    if (!sheetInputUrl.trim()) {
+      setSheetFeedback({
+        success: false,
+        message: "Enganxa l'enllaç o ID del Google Spreadsheet 'ITAEB Borsa de Treball'.",
+      });
+      return;
+    }
+
+    setIsSyncingSheet(true);
+    setSheetFeedback(null);
+
+    try {
+      const res = await syncAlumniFromGoogleSheet(sheetInputUrl.trim(), sheetInputTab.trim() || DEFAULT_SHEET_NAME);
+      setSheetConfig(res.config);
+
+      if (res.success) {
+        setSheetFeedback({
+          success: true,
+          message: res.message,
+        });
+        if (onAlumniSynced && res.alumni.length > 0) {
+          onAlumniSynced(res.alumni);
+        }
+      } else {
+        setSheetFeedback({
+          success: false,
+          message: res.message,
+        });
+      }
+    } catch (err) {
+      setSheetFeedback({
+        success: false,
+        message: err instanceof Error ? err.message : 'Error en sincronitzar amb Google Sheets',
+      });
+    } finally {
+      setIsSyncingSheet(false);
+    }
+  };
+
+  const handleTestAlumniVerification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsTestingCredentials(true);
+    setTestResult(null);
+
+    try {
+      const res = await authenticateAgainstGoogleSheet(testEmail, testPassword, registeredAlumni);
+      setTestResult({
+        tested: true,
+        success: res.success,
+        message: res.success
+          ? `Verificació correcta! S'ha trobat l'alumne "${res.user?.name}" (${res.user?.email}) a la fulla "${sheetConfig.sheetName || 'Exalumnes'}".`
+          : res.reason || 'Credencials no coincidents al full de càlcul.',
+        source: res.source,
+      });
+    } catch (err) {
+      setTestResult({
+        tested: true,
+        success: false,
+        message: err instanceof Error ? err.message : 'Error durant el test',
+      });
+    } finally {
+      setIsTestingCredentials(false);
+    }
+  };
 
   // Simulator states
   const [simOfferSector, setSimOfferSector] = useState("Il·luminació per arts escèniques");
@@ -139,6 +250,18 @@ export const CoordinatorView: React.FC<CoordinatorViewProps> = ({
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
             <span>Gestió d'Ofertes ({offers.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('alumni')}
+            className={`px-3.5 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'alumni'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Exalumnes ({registeredAlumni.length})</span>
           </button>
 
           <button
@@ -492,6 +615,322 @@ export const CoordinatorView: React.FC<CoordinatorViewProps> = ({
                       </tr>
                     );
                   })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Llistat d'Exalumnes Donats d'Alta & Sincronització Google Sheets */}
+      {activeTab === 'alumni' && (
+        <div className="space-y-6">
+          {/* Card 1: Google Sheets Direct Connection */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-lg">
+                    Sincronització amb Google Sheets: "ITAEB Borsa de Treball"
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Aquest full de càlcul és la font oficial per verificar el correu i la contrasenya dels alumnes que volen accedir a la web.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span
+                  className={`text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1.5 ${
+                    sheetConfig.lastSyncStatus === 'success'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : sheetConfig.lastSyncStatus === 'error'
+                      ? 'bg-rose-100 text-rose-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {sheetConfig.lastSyncStatus === 'success' ? (
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  ) : sheetConfig.lastSyncStatus === 'error' ? (
+                    <XCircle className="w-3.5 h-3.5" />
+                  ) : (
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                  )}
+                  <span>
+                    {sheetConfig.lastSyncStatus === 'success'
+                      ? `Connectat (${sheetConfig.totalAlumniInSheet} alumnes)`
+                      : sheetConfig.lastSyncStatus === 'error'
+                      ? 'Error de sincronització'
+                      : 'Pendent de connectar'}
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            {/* Inputs for Spreadsheet URL & Tab name */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
+              <div className="lg:col-span-7">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Enllaç o ID del Google Spreadsheet ("ITAEB Borsa de Treball"):
+                </label>
+                <input
+                  type="text"
+                  value={sheetInputUrl}
+                  onChange={e => setSheetInputUrl(e.target.value)}
+                  placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFM.../edit"
+                  className="w-full px-3.5 py-2 text-xs font-mono rounded-xl bg-slate-50 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white"
+                />
+              </div>
+
+              <div className="lg:col-span-3">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Pestanya / Fulla a verificar:
+                </label>
+                <input
+                  type="text"
+                  value={sheetInputTab}
+                  onChange={e => setSheetInputTab(e.target.value)}
+                  placeholder="Exalumnes"
+                  className="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-50 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white"
+                />
+              </div>
+
+              <div className="lg:col-span-2">
+                <button
+                  type="button"
+                  disabled={isSyncingSheet}
+                  onClick={handleSyncGoogleSheet}
+                  className="w-full py-2 px-3 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSheet ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingSheet ? 'Sincronitzant...' : 'Sincronitzar'}</span>
+                </button>
+              </div>
+            </div>
+
+            {sheetFeedback && (
+              <div
+                className={`p-3 rounded-xl text-xs flex items-start gap-2 ${
+                  sheetFeedback.success
+                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-900'
+                    : 'bg-rose-50 border border-rose-200 text-rose-900'
+                }`}
+              >
+                {sheetFeedback.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                )}
+                <span>{sheetFeedback.message}</span>
+              </div>
+            )}
+
+            {/* Step-by-step instructions */}
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs text-slate-600 space-y-1.5">
+              <span className="font-bold text-slate-800 block">
+                Com preparar el full de Google Drive per permetre la verificació:
+              </span>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>
+                  Obre el full de càlcul <strong>"ITAEB Borsa de Treball"</strong> a Google Drive amb el compte <code className="font-bold text-sky-800">tac@itaeb.cat</code>.
+                </li>
+                <li>
+                  Clica al botó blau <strong>"Comparteix"</strong> (a dalt a la dreta) i canvia "Accés general" a: <code className="font-semibold text-slate-900">Qualsevol persona amb l'enllaç</code> (amb rol de Lector).
+                </li>
+                <li>
+                  Copia l'enllaç del navegador o de la finestra de compartir i enganxa'l a la casella superior.
+                </li>
+                <li>
+                  Quan qualsevol alumne donat d'alta introdueixi el seu correu electrònic personal i la contrasenya, la web verificarà directament les files de la fulla <strong>Exalumnes</strong>.
+                </li>
+              </ol>
+            </div>
+          </div>
+
+          {/* Card 2: Interactive Credential Tester for Coordinator */}
+          <div className="bg-sky-50/60 p-6 rounded-3xl border border-sky-200 space-y-4">
+            <div className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-sky-700" />
+              <h3 className="font-bold text-slate-900 text-base">
+                Simulador de Verificació d'Alumne al Full de Càlcul
+              </h3>
+            </div>
+            <p className="text-xs text-slate-600">
+              Pots comprovar si les credencials d'un alumne registrat seran validades pel sistema:
+            </p>
+
+            <form onSubmit={handleTestAlumniVerification} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+              <div className="sm:col-span-5">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Correu personal de l'alumne:
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={testEmail}
+                  onChange={e => setTestEmail(e.target.value)}
+                  placeholder="nom.cognom@gmail.com"
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-white border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+
+              <div className="sm:col-span-4">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Contrasenya:
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={testPassword}
+                  onChange={e => setTestPassword(e.target.value)}
+                  placeholder="Contrasenya"
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-white border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
+                />
+              </div>
+
+              <div className="sm:col-span-3">
+                <button
+                  type="submit"
+                  disabled={isTestingCredentials}
+                  className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>{isTestingCredentials ? 'Verificant...' : 'Provar accés'}</span>
+                </button>
+              </div>
+            </form>
+
+            {testResult && (
+              <div
+                className={`p-3.5 rounded-xl text-xs flex items-start gap-2.5 ${
+                  testResult.success
+                    ? 'bg-emerald-100/80 border border-emerald-300 text-emerald-950'
+                    : 'bg-rose-100/80 border border-rose-300 text-rose-950'
+                }`}
+              >
+                {testResult.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-700 shrink-0 mt-0.5" />
+                )}
+                <div className="space-y-0.5">
+                  <div className="font-bold">{testResult.success ? 'Accés permès' : 'Accés denegat'}</div>
+                  <div>{testResult.message}</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Card 3: Header of Alumni List & Search */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-slate-900 text-lg">
+                  Llistat d'Exalumnes ({registeredAlumni.length})
+                </h3>
+                <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full">
+                  Fulla "Exalumnes"
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-1">
+                Aquestes són les dades registrades amb el correu personal i la contrasenya d'accés a la borsa.
+              </p>
+            </div>
+
+            <div className="relative min-w-[240px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={alumniSearch}
+                onChange={e => setAlumniSearch(e.target.value)}
+                placeholder="Cercar per correu, nom o DNI..."
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="p-3.5">Nom i Cognoms</th>
+                    <th className="p-3.5">Correu Personal (Usuari)</th>
+                    <th className="p-3.5">Contrasenya</th>
+                    <th className="p-3.5">DNI</th>
+                    <th className="p-3.5">Especialitat & Promoció</th>
+                    <th className="p-3.5">Sectors d'Interès</th>
+                    <th className="p-3.5">Estat Accés</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {registeredAlumni
+                    .filter(a => {
+                      if (!alumniSearch.trim()) return true;
+                      const q = alumniSearch.toLowerCase();
+                      return (
+                        a.nomCognoms.toLowerCase().includes(q) ||
+                        a.correu.toLowerCase().includes(q) ||
+                        a.dni.toLowerCase().includes(q)
+                      );
+                    })
+                    .map(alumni => {
+                      const isPassVisible = visiblePasswords[alumni.id] || false;
+                      return (
+                        <tr key={alumni.id} className="hover:bg-slate-50/70">
+                          <td className="p-3.5">
+                            <div className="font-bold text-slate-900">
+                              {alumni.nomCognoms}
+                            </div>
+                            <div className="text-[10px] text-slate-400">Data registre: {alumni.marcaTemps}</div>
+                          </td>
+                          <td className="p-3.5 font-mono font-medium text-slate-800">
+                            {alumni.correu}
+                          </td>
+                          <td className="p-3.5 font-mono">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">
+                                {isPassVisible ? alumni.contrasenya || '(Buit)' : '••••••••'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => togglePasswordVisibility(alumni.id)}
+                                className="p-1 text-slate-400 hover:text-slate-600 rounded transition cursor-pointer"
+                                title={isPassVisible ? 'Amagar contrasenya' : 'Mostrar contrasenya'}
+                              >
+                                {isPassVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          </td>
+                          <td className="p-3.5 font-mono text-slate-600">
+                            {alumni.dni}
+                          </td>
+                          <td className="p-3.5">
+                            <div className="text-slate-800 font-medium">{alumni.especialitat}</div>
+                            <div className="text-slate-500 text-[11px]">Promoció {alumni.anyGraduacio}</div>
+                          </td>
+                          <td className="p-3.5">
+                            <div className="flex flex-wrap gap-1 max-w-xs">
+                              {alumni.sectorsInteres.map((s, idx) => (
+                                <span key={idx} className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
+                                  {s}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="p-3.5">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Actiu a alumni@itaeb.cat</span>
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>
