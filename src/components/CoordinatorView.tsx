@@ -37,9 +37,23 @@ import {
   saveStoredSheetConfig,
   syncAlumniFromGoogleSheet,
   authenticateAgainstGoogleSheet,
+  importAlumniViaCsv,
+  fetchServerAlumni,
   GoogleSheetConfig,
   DEFAULT_SHEET_NAME,
 } from '../utils/googleSheetsSync';
+import {
+  signInWithGoogleSheets,
+  getCachedGoogleAccessToken,
+  setCachedGoogleAccessToken,
+  googleSignOut,
+  initGoogleAuth,
+} from '../utils/googleAuth';
+import {
+  readGoogleSheetData,
+  appendAlumniToGoogleSheet,
+  appendOfferToGoogleSheet,
+} from '../utils/googleSheetsApi';
 
 interface CoordinatorViewProps {
   offers: JobOffer[];
@@ -81,6 +95,105 @@ export const CoordinatorView: React.FC<CoordinatorViewProps> = ({
 
   // Password visibility in table
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+
+  // Direct CSV / Copy-Paste import state
+  const [showCsvImport, setShowCsvImport] = useState(false);
+  const [csvContent, setCsvContent] = useState('');
+  const [isImportingCsv, setIsImportingCsv] = useState(false);
+  const [csvFeedback, setCsvFeedback] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleImportCsv = async () => {
+    if (!csvContent.trim()) {
+      setCsvFeedback({ success: false, message: 'Enganxa les línies CSV o dades de les cel·les.' });
+      return;
+    }
+    setIsImportingCsv(true);
+    setCsvFeedback(null);
+    try {
+      const res = await importAlumniViaCsv(csvContent);
+      setCsvFeedback({ success: res.success, message: res.message });
+      if (res.success) {
+        if (res.config) setSheetConfig(res.config);
+        const updatedList = await fetchServerAlumni();
+        if (onAlumniSynced && updatedList.length > 0) {
+          onAlumniSynced(updatedList);
+        }
+        setCsvContent('');
+      }
+    } catch (e) {
+      setCsvFeedback({
+        success: false,
+        message: e instanceof Error ? e.message : 'Error en importar el CSV',
+      });
+    } finally {
+      setIsImportingCsv(false);
+    }
+  };
+
+  // Google Account & OAuth state
+  const [googleUser, setGoogleUser] = useState<{ email: string; name: string } | null>(null);
+  const [isSigningInGoogle, setIsSigningInGoogle] = useState(false);
+  const [googleAuthError, setGoogleAuthError] = useState<string | null>(null);
+
+  // Initialize auth listener
+  React.useEffect(() => {
+    const unsubscribe = initGoogleAuth(
+      (user, token) => {
+        setGoogleUser({ email: user.email || 'tac@itaeb.cat', name: user.displayName || 'Coordinador ITAEB' });
+        setCachedGoogleAccessToken(token);
+        if (typeof window !== 'undefined') {
+          (window as unknown as { __GOOGLE_ACCESS_TOKEN__?: string }).__GOOGLE_ACCESS_TOKEN__ = token;
+        }
+      },
+      () => {
+        setGoogleUser(null);
+        setCachedGoogleAccessToken(null);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  const handleSignInWithGoogle = async () => {
+    setIsSigningInGoogle(true);
+    setGoogleAuthError(null);
+    try {
+      const res = await signInWithGoogleSheets();
+      if (res) {
+        setGoogleUser({ email: res.user.email || 'tac@itaeb.cat', name: res.user.displayName || 'Coordinador ITAEB' });
+        setCachedGoogleAccessToken(res.accessToken);
+        if (typeof window !== 'undefined') {
+          (window as unknown as { __GOOGLE_ACCESS_TOKEN__?: string }).__GOOGLE_ACCESS_TOKEN__ = res.accessToken;
+        }
+        setSheetFeedback({
+          success: true,
+          message: `Compte connectat (${res.user.email}). Ara la web té permís d'Edició al Google Sheets!`,
+        });
+        // Auto trigger sync with the authenticated token
+        if (sheetInputUrl.trim()) {
+          setTimeout(() => handleSyncGoogleSheet(), 200);
+        }
+      }
+    } catch (err: unknown) {
+      console.error('Google sign in error:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setGoogleAuthError(msg);
+      setSheetFeedback({
+        success: false,
+        message: `Error en iniciar sessió amb Google: ${msg}`,
+      });
+    } finally {
+      setIsSigningInGoogle(false);
+    }
+  };
+
+  const handleGoogleDisconnect = async () => {
+    await googleSignOut();
+    setGoogleUser(null);
+    setCachedGoogleAccessToken(null);
+    if (typeof window !== 'undefined') {
+      delete (window as unknown as { __GOOGLE_ACCESS_TOKEN__?: string }).__GOOGLE_ACCESS_TOKEN__;
+    }
+  };
 
   const togglePasswordVisibility = (id: string) => {
     setVisiblePasswords(prev => ({ ...prev, [id]: !prev[id] }));
@@ -670,6 +783,62 @@ export const CoordinatorView: React.FC<CoordinatorViewProps> = ({
               </div>
             </div>
 
+            {/* Google Account Authorization Banner (Permís d'Edició Oficial) */}
+            <div className={`p-4 rounded-2xl border transition-all ${googleUser ? 'bg-emerald-50/70 border-emerald-300' : 'bg-sky-50/80 border-sky-300'}`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                      <Shield className="w-4 h-4 text-sky-700" />
+                      <span>Permís d'Edició Google Sheets (API oficial)</span>
+                    </span>
+                    {googleUser ? (
+                      <span className="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        <span>Autoritzat com {googleUser.email}</span>
+                      </span>
+                    ) : (
+                      <span className="text-[11px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">
+                        Requereix autorització
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
+                    {googleUser
+                      ? "Aquest navegador té una sessió activa de Google amb permís d'Edició i Lectura. El servidor pot sincronitzar el full encara que sigui privat i afegir-hi nous registres en temps real."
+                      : "Perquè la web tingui permís d'Edició directe al vostre Google Sheet sense fer-lo públic, inicieu sessió amb el compte de coordinació de l'ITAEB (tac@itaeb.cat)."}
+                  </p>
+                </div>
+
+                <div className="shrink-0 flex items-center gap-2">
+                  {googleUser ? (
+                    <button
+                      type="button"
+                      onClick={handleGoogleDisconnect}
+                      className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-xs text-slate-700 font-semibold transition cursor-pointer"
+                    >
+                      Desconnectar compte
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={isSigningInGoogle}
+                      onClick={handleSignInWithGoogle}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-300 shadow-xs transition cursor-pointer disabled:opacity-50"
+                    >
+                      <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-4 h-4 shrink-0">
+                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                      </svg>
+                      <span>{isSigningInGoogle ? 'Autoritzant...' : "Donar permís amb Google (tac@itaeb.cat)"}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* Inputs for Spreadsheet URL & Tab name */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
               <div className="lg:col-span-7">
@@ -747,6 +916,70 @@ export const CoordinatorView: React.FC<CoordinatorViewProps> = ({
                   Quan qualsevol alumne donat d'alta introdueixi el seu correu electrònic personal i la contrasenya, la web verificarà directament les files de la fulla <strong>Exalumnes</strong>.
                 </li>
               </ol>
+            </div>
+
+            {/* Alternativa: Importació directa per CSV / Copiar-Enganxar cel·les */}
+            <div className="pt-2 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowCsvImport(!showCsvImport)}
+                className="text-xs font-semibold text-sky-700 hover:text-sky-800 inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>
+                  {showCsvImport
+                    ? 'Amagar importació directa per CSV'
+                    : 'Alternativa: Copiar i enganxar directament les dades del full (CSV)'}
+                </span>
+              </button>
+
+              {showCsvImport && (
+                <div className="mt-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                  <div className="text-xs text-slate-700">
+                    <span className="font-bold block mb-1">Enganxa les dades del full de càlcul:</span>
+                    <span>
+                      Pots descarregar el full des de Google Drive (<em>Fitxer → Baixa → Valors separats per comes .csv</em>) o seleccionar totes les cel·les de la fulla <strong>Exalumnes</strong>, copiar-les i enganxar-les aquí:
+                    </span>
+                  </div>
+
+                  <textarea
+                    rows={4}
+                    value={csvContent}
+                    onChange={e => setCsvContent(e.target.value)}
+                    placeholder="Marca de temps,Nom i cognoms,DNI,Correu electrònic,Contrasenya,Any de graduació..."
+                    className="w-full p-2.5 text-xs font-mono rounded-xl bg-white border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+
+                  {csvFeedback && (
+                    <div
+                      className={`p-2.5 rounded-xl text-xs flex items-center gap-2 ${
+                        csvFeedback.success
+                          ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                          : 'bg-rose-100 text-rose-900 border border-rose-300'
+                      }`}
+                    >
+                      {csvFeedback.success ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-700 shrink-0" />
+                      )}
+                      <span>{csvFeedback.message}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      disabled={isImportingCsv || !csvContent.trim()}
+                      onClick={handleImportCsv}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isImportingCsv ? 'animate-spin' : ''}`} />
+                      <span>{isImportingCsv ? 'Important...' : 'Carregar al servidor per a tothom'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

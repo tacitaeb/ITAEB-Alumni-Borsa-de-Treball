@@ -380,7 +380,74 @@ export function parseAlumniRecordsFromRows(rows: string[][]): AlumniRecord[] {
 }
 
 /**
- * Realitza la sincronització completa amb el full de càlcul de Google Sheets
+ * Obté la configuració del full de càlcul des del servidor
+ */
+export async function fetchServerSheetConfig(): Promise<GoogleSheetConfig | null> {
+  try {
+    const res = await fetch('/api/sheet-config');
+    if (res.ok) {
+      const config = (await res.json()) as GoogleSheetConfig;
+      saveStoredSheetConfig(config);
+      return config;
+    }
+  } catch (e) {
+    console.warn('No s’ha pogut carregar la configuració del servidor:', e);
+  }
+  return null;
+}
+
+/**
+ * Obté la llista d'exalumnes sincronitzats des del servidor
+ */
+export async function fetchServerAlumni(): Promise<AlumniRecord[]> {
+  try {
+    const res = await fetch('/api/alumni-list');
+    if (res.ok) {
+      const list = (await res.json()) as AlumniRecord[];
+      if (Array.isArray(list) && list.length > 0) {
+        saveStoredSyncedAlumni(list);
+        return list;
+      }
+    }
+  } catch (e) {
+    console.warn('No s’han pogut carregar els alumnes del servidor:', e);
+  }
+  return getStoredSyncedAlumni();
+}
+
+/**
+ * Permet importar directament contingut CSV o dades copiades del Google Sheet
+ */
+export async function importAlumniViaCsv(csvContent: string): Promise<{
+  success: boolean;
+  message: string;
+  total: number;
+  config?: GoogleSheetConfig;
+}> {
+  try {
+    const res = await fetch('/api/import-csv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ csvContent }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      if (data.config) saveStoredSheetConfig(data.config);
+      await fetchServerAlumni();
+      return { success: true, message: data.message, total: data.total || 0, config: data.config };
+    }
+    return { success: false, message: data.message || 'Error en importar el CSV', total: 0 };
+  } catch (err) {
+    return {
+      success: false,
+      message: err instanceof Error ? err.message : 'Error de xarxa en importar el CSV',
+      total: 0,
+    };
+  }
+}
+
+/**
+ * Realitza la sincronització completa amb el full de càlcul de Google Sheets (servidor primer, client fallback)
  */
 export async function syncAlumniFromGoogleSheet(
   spreadsheetUrlOrId?: string,
@@ -412,6 +479,42 @@ export async function syncAlumniFromGoogleSheet(
     };
   }
 
+  // 1. Intent mitjançant API de backend al servidor (sense problemes de CORS al client)
+  try {
+    const cachedToken = typeof window !== 'undefined' ? (window as unknown as { __GOOGLE_ACCESS_TOKEN__?: string }).__GOOGLE_ACCESS_TOKEN__ : undefined;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (cachedToken) {
+      headers['Authorization'] = `Bearer ${cachedToken}`;
+    }
+
+    const serverRes = await fetch('/api/sheet-config', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        spreadsheetUrlOrId: targetIdOrUrl,
+        sheetName: targetSheet,
+      }),
+    });
+
+    const serverData = await serverRes.json();
+    if (serverRes.ok && serverData.success) {
+      saveStoredSheetConfig(serverData.config);
+      const serverAlumni = await fetchServerAlumni();
+      return {
+        success: true,
+        alumni: serverAlumni,
+        total: serverData.total || serverAlumni.length,
+        message: serverData.message,
+        config: serverData.config,
+      };
+    } else if (serverData.message) {
+      console.warn('Server sync reportà un avís, provant client fetch...', serverData.message);
+    }
+  } catch (e) {
+    console.warn('Server sync no disponible, utilitzant client fallback...', e);
+  }
+
+  // 2. Intent al navegador (client-side)
   try {
     const rows = await fetchRawSheetRows(targetIdOrUrl, targetSheet);
     const parsedAlumni = parseAlumniRecordsFromRows(rows);
@@ -459,8 +562,7 @@ export async function syncAlumniFromGoogleSheet(
 
 /**
  * Autentica les credencials directament verificant-les contra el full de càlcul "Exalumnes".
- * Si hi ha connexió activa amb Google Sheets, fa una consulta en viu o comprova la llista
- * sincronitzada i actualitzada.
+ * Consulta el servidor per verificar amb el full de càlcul compartit per a tothom.
  */
 export async function authenticateAgainstGoogleSheet(
   email: string,
@@ -470,6 +572,7 @@ export async function authenticateAgainstGoogleSheet(
   success: boolean;
   user?: UserSession;
   reason?: string;
+  notConfigured?: boolean;
   source: 'google_sheets_live' | 'google_sheets_synced' | 'local_fallback' | 'coordinator';
   alumniRecord?: AlumniRecord;
 }> {
@@ -498,66 +601,85 @@ export async function authenticateAgainstGoogleSheet(
     };
   }
 
-  // 2. Comprovació d'alumni al full de càlcul Google Sheets
+  // 2. Intent de verificació mitjançant el servidor
+  try {
+    const res = await fetch('/api/verify-alumni', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, password: cleanPass }),
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success) {
+      return {
+        success: true,
+        user: data.user,
+        alumniRecord: data.alumniRecord,
+        source: 'google_sheets_live',
+      };
+    } else if (data.notConfigured) {
+      return {
+        success: false,
+        notConfigured: true,
+        reason: data.reason,
+        source: 'local_fallback',
+      };
+    } else if (data.reason) {
+      return {
+        success: false,
+        reason: data.reason,
+        source: 'google_sheets_live',
+      };
+    }
+  } catch (err) {
+    console.warn('Verificació al servidor no disponible, provant memòria cau local...', err);
+  }
+
+  // 3. Fallback a la llista local si el servidor no respon
   const config = getStoredSheetConfig();
-  let candidateList: AlumniRecord[] = [];
-  let verifiedFromLiveSheet = false;
-
-  // Si hi ha enllaç o ID configurat, intentem obtenir les dades directes del Google Sheet
-  if (config.spreadsheetUrlOrId) {
-    try {
-      const syncResult = await syncAlumniFromGoogleSheet(config.spreadsheetUrlOrId, config.sheetName);
-      if (syncResult.success && syncResult.alumni.length > 0) {
-        candidateList = syncResult.alumni;
-        verifiedFromLiveSheet = true;
-      }
-    } catch (e) {
-      console.warn('No es pot fer la verificació en viu amb el full de càlcul, utilitzant memòria cau...', e);
-    }
-  }
-
-  // Si no hem pogut fer consulta en viu, emprem la darrera llista sincronitzada o el fallback
+  let candidateList = getStoredSyncedAlumni();
   if (candidateList.length === 0) {
-    const stored = getStoredSyncedAlumni();
-    if (stored.length > 0) {
-      candidateList = stored;
-    } else {
-      candidateList = fallbackAlumni;
-    }
+    candidateList = fallbackAlumni;
   }
 
-  // Cercar l'alumni pel correu electrònic
-  const alumni = candidateList.find(a => a.correu.trim().toLowerCase() === cleanEmail);
+  if (!config.spreadsheetUrlOrId && candidateList.length === 0) {
+    return {
+      success: false,
+      notConfigured: true,
+      reason: `El full de càlcul "ITAEB Borsa de Treball" (fulla "${
+        config.sheetName || 'Exalumnes'
+      }") encara no està vinculat. Com a coordinador (tac@itaeb.cat), indica l'enllaç de Google Drive per activar la verificació.`,
+      source: 'local_fallback',
+    };
+  }
 
+  const alumni = candidateList.find(a => a.correu.trim().toLowerCase() === cleanEmail);
   if (!alumni) {
     return {
       success: false,
       reason: `El correu "${cleanEmail}" no s'ha trobat a la fulla "${
         config.sheetName || 'Exalumnes'
       }" del full de càlcul "ITAEB Borsa de Treball". Si ets graduat/da de l'ITAEB, has d'omplir el formulari d'alta oficial per constar al full de càlcul.`,
-      source: verifiedFromLiveSheet ? 'google_sheets_live' : 'google_sheets_synced',
+      source: 'google_sheets_synced',
     };
   }
 
-  // Comprovar contrasenya
-  // Si té contrasenya registrada al full, cal que coincideixi
   if (alumni.contrasenya && alumni.contrasenya.trim().length > 0) {
     if (alumni.contrasenya.trim() !== cleanPass) {
       return {
         success: false,
-        reason: `La contrasenya introduïda no coincideix amb la registrada a la fulla "${
+        reason: `La contrasenya introduïda no és correcta per al compte ${cleanEmail} a la fulla "${
           config.sheetName || 'Exalumnes'
-        }" per al compte ${cleanEmail}.`,
-        source: verifiedFromLiveSheet ? 'google_sheets_live' : 'google_sheets_synced',
+        }".`,
+        source: 'google_sheets_synced',
       };
     }
   } else {
-    // Si la cel·la de contrasenya estava buida al full, acceptem qualsevol contrasenya de seguretat mínima (>= 3 caràcters)
     if (cleanPass.length < 3) {
       return {
         success: false,
         reason: 'La contrasenya ha de tenir com a mínim 3 caràcters.',
-        source: verifiedFromLiveSheet ? 'google_sheets_live' : 'google_sheets_synced',
+        source: 'google_sheets_synced',
       };
     }
   }
@@ -571,6 +693,6 @@ export async function authenticateAgainstGoogleSheet(
       role: 'alumni',
     },
     alumniRecord: alumni,
-    source: verifiedFromLiveSheet ? 'google_sheets_live' : 'google_sheets_synced',
+    source: 'google_sheets_synced',
   };
 }

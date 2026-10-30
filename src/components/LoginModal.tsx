@@ -91,6 +91,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           onClose();
         }, 350);
       } else {
+        if (result.notConfigured) {
+          setShowSheetConfig(true);
+        }
         setErrorMsg(result.reason || "Correu electrònic o contrasenya incorrectes a la fulla Exalumnes.");
       }
     } catch (err) {

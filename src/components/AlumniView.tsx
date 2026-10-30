@@ -26,6 +26,9 @@ import {
   registerNewAlumni,
   verifyAlumniAgainstRegistry
 } from '../utils/jobData';
+import { appendAlumniToGoogleSheet } from '../utils/googleSheetsApi';
+import { getStoredSheetConfig } from '../utils/googleSheetsSync';
+import { getCachedGoogleAccessToken } from '../utils/googleAuth';
 
 interface AlumniViewProps {
   onNavigate: (page: PageId) => void;
@@ -111,9 +114,32 @@ export const AlumniView: React.FC<AlumniViewProps> = ({
         autoAddedToGroup: res.autoAddedToGroup,
         record: res.newRecord,
         message: res.autoAddedToGroup
-          ? `Alumni verificat oficialment! S'ha afegit una nova fila al full de càlcul "Exalumnes" i el correu ${res.newRecord.correu} s'ha incorporat al grup oficial alumni@itaeb.cat.`
-          : `Registre guardat. Les dades del DNI o especialitat es revisaran manualment pel Coordinador d'Estada a l'Empresa (empresa@itaeb.cat) per afegir-te al grup alumni@itaeb.cat.`,
+          ? `Alumni verificat oficialment! S'ha registrat a la Borsa i el correu ${res.newRecord.correu} té accés concedit.`
+          : `Registre guardat. Les dades del DNI o especialitat es revisaran pel Coordinador d'Estada a l'Empresa (empresa@itaeb.cat).`,
       });
+
+      // Si el full de Google Sheets està connectat, escriure la nova fila directament amb l'API d'Edició
+      const sheetCfg = getStoredSheetConfig();
+      const token = getCachedGoogleAccessToken();
+      if (sheetCfg.spreadsheetUrlOrId && token) {
+        appendAlumniToGoogleSheet(
+          sheetCfg.spreadsheetUrlOrId,
+          sheetCfg.sheetName || 'Exalumnes',
+          {
+            nomCognoms,
+            dni,
+            correu,
+            contrasenya,
+            anyGraduacio,
+            especialitat,
+            sectorsInteres: selectedSectors,
+            notificacionsCorreu,
+          },
+          token
+        ).catch(err => {
+          console.warn("Nota d'escriptura a Google Sheets:", err);
+        });
+      }
     }
   };
 

@@ -14,7 +14,10 @@ import { INITIAL_OFFERS, INITIAL_REGISTERED_ALUMNI } from './utils/jobData';
 import {
   getStoredSheetConfig,
   getStoredSyncedAlumni,
-  syncAlumniFromGoogleSheet
+  syncAlumniFromGoogleSheet,
+  fetchServerSheetConfig,
+  fetchServerAlumni,
+  GoogleSheetConfig
 } from './utils/googleSheetsSync';
 
 export default function App() {
@@ -148,20 +151,27 @@ export default function App() {
     });
   };
 
-  // Background Google Sheets auto-sync if configured
+  // Server & Google Sheets auto-sync on mount
   useEffect(() => {
-    const config = getStoredSheetConfig();
-    if (config.spreadsheetUrlOrId) {
-      syncAlumniFromGoogleSheet(config.spreadsheetUrlOrId, config.sheetName)
-        .then(res => {
-          if (res.success && res.alumni.length > 0) {
-            handleAlumniSynced(res.alumni);
-          }
-        })
-        .catch(err => {
-          console.warn('Auto-sync with Google Sheets notice:', err);
-        });
-    }
+    fetchServerSheetConfig().then(cfg => {
+      if (cfg && cfg.spreadsheetUrlOrId) {
+        syncAlumniFromGoogleSheet(cfg.spreadsheetUrlOrId, cfg.sheetName)
+          .then(res => {
+            if (res.success && res.alumni.length > 0) {
+              handleAlumniSynced(res.alumni);
+            }
+          })
+          .catch(err => {
+            console.warn('Auto-sync notice:', err);
+          });
+      }
+    });
+
+    fetchServerAlumni().then(list => {
+      if (list && list.length > 0) {
+        handleAlumniSynced(list);
+      }
+    });
   }, []);
 
   // Support ?autostart=1 or direct page deep-linking
