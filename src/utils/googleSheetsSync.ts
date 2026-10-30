@@ -307,6 +307,7 @@ export function parseAlumniRecordsFromRows(rows: string[][]): AlumniRecord[] {
   let sectorsCol = 7;
   let notifCol = 8;
   let timestampCol = 0;
+  let statusCol = -1;
 
   let dataStartIndex = 0;
 
@@ -332,6 +333,8 @@ export function parseAlumniRecordsFromRows(rows: string[][]): AlumniRecord[] {
         notifCol = index;
       } else if (header.includes('marca') || header.includes('temps') || header.includes('data')) {
         timestampCol = index;
+      } else if (header.includes('verificat') || header.includes('estat') || header.includes('validat') || header.includes('aprovat') || header.includes('status')) {
+        statusCol = index;
       }
     });
   }
@@ -361,6 +364,17 @@ export function parseAlumniRecordsFromRows(rows: string[][]): AlumniRecord[] {
     const notificacionsCorreu = rawNotif.startsWith('s') || rawNotif.includes('yes') || rawNotif.includes('true');
     const marcaTemps = (row[timestampCol] || new Date().toLocaleDateString('ca-ES')).trim();
 
+    // Comprovació de columna d'Estat/Verificat si existeix
+    let isVerified = true;
+    if (statusCol !== -1 && row[statusCol] !== undefined) {
+      const statusVal = normalizeText(row[statusCol] || '');
+      if (statusVal) {
+        isVerified = statusVal.includes('si') || statusVal.includes('ok') || statusVal.includes('validat') || statusVal.includes('verificat') || statusVal.includes('aprovat') || statusVal === 'true';
+      } else {
+        isVerified = false;
+      }
+    }
+
     alumniList.push({
       id: `sheet-alu-${r}-${email.replace(/[^a-zA-Z0-9]/g, '')}`,
       marcaTemps,
@@ -372,7 +386,7 @@ export function parseAlumniRecordsFromRows(rows: string[][]): AlumniRecord[] {
       especialitat,
       sectorsInteres,
       notificacionsCorreu,
-      verificat: true,
+      verificat: isVerified,
     });
   }
 
@@ -413,6 +427,44 @@ export async function fetchServerAlumni(): Promise<AlumniRecord[]> {
     console.warn('No s’han pogut carregar els alumnes del servidor:', e);
   }
   return getStoredSyncedAlumni();
+}
+
+/**
+ * Actualitza les dades d'un exalumne al servidor i a la memòria local
+ */
+export async function updateAlumniProfile(
+  originalEmail: string,
+  updatedData: Partial<AlumniRecord>
+): Promise<{ success: boolean; updatedRecord?: AlumniRecord; message: string }> {
+  try {
+    const res = await fetch('/api/update-alumni', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        originalEmail,
+        ...updatedData,
+      }),
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success && data.updatedRecord) {
+      // Actualitzar memòria cau local
+      const current = getStoredSyncedAlumni();
+      const updatedList = current.map(a =>
+        a.correu.trim().toLowerCase() === originalEmail.trim().toLowerCase()
+          ? { ...a, ...data.updatedRecord }
+          : a
+      );
+      saveStoredSyncedAlumni(updatedList);
+      return { success: true, updatedRecord: data.updatedRecord, message: data.message };
+    }
+    return { success: false, message: data.reason || "Error en actualitzar les dades de l'alumne." };
+  } catch (err) {
+    return {
+      success: false,
+      message: err instanceof Error ? err.message : 'Error de xarxa en actualitzar el perfil.',
+    };
+  }
 }
 
 /**
@@ -682,6 +734,15 @@ export async function authenticateAgainstGoogleSheet(
         source: 'google_sheets_synced',
       };
     }
+  }
+
+  // Comprovació estricta de la columna Verificat / Estat
+  if (alumni.verificat === false) {
+    return {
+      success: false,
+      reason: `El teu compte "${cleanEmail}" consta al full de càlcul però està pendent de verificació acadèmica per part de la Coordinació. Quan el teu perfil sigui validat oficialment o afegit al grup alumni@itaeb.cat, tindràs accés a la Borsa.`,
+      source: 'google_sheets_synced',
+    };
   }
 
   return {

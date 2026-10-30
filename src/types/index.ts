@@ -39,7 +39,7 @@ export interface OfficialAlumniEntry {
   nom: string;
 }
 
-export type PageId = 'inici' | 'sobre' | 'alumni' | 'empreses' | 'ofertes' | 'coordinador';
+export type PageId = 'inici' | 'sobre' | 'alumni' | 'empreses' | 'ofertes' | 'coordinador' | 'perfil';
 
 export interface UserSession {
   email: string;

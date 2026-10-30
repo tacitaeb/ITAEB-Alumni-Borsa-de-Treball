@@ -555,24 +555,119 @@ export const CoordinatorView: React.FC<CoordinatorViewProps> = ({
             </div>
           </div>
 
-          {/* Section 5: Alta d'exalumnes & Manual Google Workspace handling */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 space-y-4 shadow-xs">
+          {/* Section 5: Alta d'exalumnes & Automatització Google Apps Script */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 space-y-5 shadow-xs">
             <div className="flex items-center gap-2 text-sky-700 font-bold text-xs uppercase tracking-wider">
               <span>Secció 5</span>
             </div>
             <h2 className="text-xl font-bold text-slate-900">
-              5. Procediment d'afegir manualment un exalumne a admin.google.com
+              5. Automatització de Verificació i Alta al Grup alumni@itaeb.cat
             </h2>
-            <p className="text-xs sm:text-sm text-slate-600">
-              Quan un exalumne no es pot verificar automàticament (per exemple perquè és d'una promoció antiga o va escriure el DNI diferent), el coordinador fa el tràmit manual a la consola de Google Workspace:
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              Perquè el formulari de Google <strong>(1X1MzJa2RjFkcsPZS8BHRZHV1vBvxxaA54fwE4aMW8I0)</strong> validi automàticament els requisits i afegeixi els graduats aprovats directament al grup de Google Workspace <strong>alumni@itaeb.cat</strong>:
             </p>
-            <ol className="text-xs sm:text-sm text-slate-700 space-y-1.5 list-decimal list-inside p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <li>Aneu a <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold">admin.google.com</code> amb el compte d'administrador.</li>
-              <li>Aneu a <strong>"Directori → Grups"</strong>.</li>
-              <li>Cerqueu el grup <code className="text-sky-700 font-bold">{OFFICIAL_EMAILS.grupGoogleAccés}</code>.</li>
-              <li>Cliqueu a <strong>"Afegir membres"</strong>.</li>
-              <li>Afegiu el correu electrònic de l'exalumne i deseu.</li>
-            </ol>
+
+            <div className="p-4 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-950 space-y-2">
+              <span className="font-bold block text-sm text-sky-900">Com funciona l'Opció B (Columna Verificat):</span>
+              <ul className="list-disc list-inside space-y-1 text-slate-700">
+                <li>
+                  Al vostre full de càlcul <strong>"Exalumnes"</strong> afegiu la columna <strong>"Verificat"</strong> (o Estat).
+                </li>
+                <li>
+                  Quan un usuari entra a la web amb el seu correu i contrasenya, <strong>la web només li permet l'accés si el camp Verificat és "SÍ"</strong>. Si està buit o "NO", la web li indica que la seva sol·licitud està pendent de validació.
+                </li>
+              </ul>
+            </div>
+
+            {/* Apps Script to automate it */}
+            <div className="p-4 rounded-xl bg-slate-900 text-slate-100 text-xs space-y-3 font-mono">
+              <div className="flex items-center justify-between text-slate-400">
+                <span className="font-bold text-amber-400 font-sans">Script d'automatització automàtica (Google Apps Script):</span>
+                <span>Extensions → Apps Script</span>
+              </div>
+              <p className="text-[11px] text-slate-300 font-sans leading-normal">
+                Copieu aquest codi al full de càlcul a <em>Extensions → Apps Script</em> amb un activador <em>"Al enviar el formulari" (onFormSubmit)</em>:
+              </p>
+              <pre className="p-3 bg-slate-950 rounded-lg overflow-x-auto text-[11px] text-emerald-300">
+{`function normalitzarText(str) {
+  if (!str) return '';
+  return str.toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/g, '') // treu accents (à, è, é...)
+    .replace(/·/g, '') // normalitza punt volat català
+    .replace(/['’]/g, ' ')
+    .replace(/[^a-z0-9\\s]/g, ' ')
+    .replace(/\\s+/g, ' ')
+    .trim();
+}
+
+function onFormSubmit(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetExalumnes = ss.getSheetByName("Exalumnes");
+  var sheetOficial = ss.getSheetByName("Llistat alumni ITAEB");
+  
+  var lastRow = sheetExalumnes.getLastRow();
+  // DNI (columna C / 3), correu (columna D / 4) i Especialitat (columna G / 7)
+  var dniAlumne = sheetExalumnes.getRange(lastRow, 3).getValue().toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  var correuAlumne = sheetExalumnes.getRange(lastRow, 4).getValue().toString().trim().toLowerCase();
+  var especialitatAlumne = normalitzarText(sheetExalumnes.getRange(lastRow, 7).getValue());
+  
+  // 1. Cercar si el DNI i l'Especialitat coincideixen al registre oficial de graduats
+  var dadesOficials = sheetOficial.getDataRange().getValues();
+  var esGraduat = false;
+  var coincidenciaDNI = false;
+  
+  for (var i = 1; i < dadesOficials.length; i++) {
+    // Columna A (0): Estudis/Especialitat oficial | Columna C (2): DNI oficial
+    var estudisOficials = normalitzarText(dadesOficials[i][0]);
+    var dniOficial = dadesOficials[i][2].toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    
+    if (dniOficial === dniAlumne && dniOficial.length > 5) {
+      coincidenciaDNI = true;
+      // Comprovar si coincideix l'especialitat cursada (subcadena o exacta)
+      if (estudisOficials === especialitatAlumne || 
+          estudisOficials.indexOf(especialitatAlumne) !== -1 || 
+          especialitatAlumne.indexOf(estudisOficials) !== -1) {
+        esGraduat = true;
+        break;
+      }
+    }
+  }
+  
+  // 2. Columna 10 (J): "Verificat"
+  var colVerificat = 10;
+  if (esGraduat) {
+    // DNI i Especialitat correctes -> "SÍ" i alta automàtica al grup
+    sheetExalumnes.getRange(lastRow, colVerificat).setValue("SÍ");
+    
+    try {
+      AdminDirectory.Members.insert({
+        email: correuAlumne,
+        role: "MEMBER"
+      }, "alumni@itaeb.cat");
+    } catch(err) {
+      Logger.log("Avís al grup Workspace: " + err);
+    }
+  } else if (coincidenciaDNI) {
+    // El DNI és vàlid però l'especialitat no coincideix exactament
+    sheetExalumnes.getRange(lastRow, colVerificat).setValue("PENDENT (Especialitat diferent)");
+  } else {
+    // El DNI no consta al registre oficial
+    sheetExalumnes.getRange(lastRow, colVerificat).setValue("PENDENT (DNI no trobat)");
+  }
+}`}
+              </pre>
+            </div>
+
+            <div className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <strong>Procediment manual alternatiu a admin.google.com:</strong>
+              <ol className="list-decimal list-inside space-y-1 mt-1 text-slate-700">
+                <li>Aneu a <code className="font-bold">admin.google.com</code> → Directori → Grups → <strong>alumni@itaeb.cat</strong>.</li>
+                <li>Cliqueu <em>"Afegir membres"</em> i poseu el correu de l'exalumne validat.</li>
+                <li>Al full de càlcul, poseu <strong>"SÍ"</strong> a la columna Verificat de la seva fila.</li>
+              </ol>
+            </div>
           </div>
 
           {/* Section 7: Email Flows */}
@@ -1156,10 +1251,17 @@ export const CoordinatorView: React.FC<CoordinatorViewProps> = ({
                             </div>
                           </td>
                           <td className="p-3.5">
-                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                              <CheckCircle2 className="w-3 h-3" />
-                              <span>Actiu a alumni@itaeb.cat</span>
-                            </span>
+                            {alumni.verificat ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Verificat (Accés actiu)</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                                <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                <span>Pendent de verificació</span>
+                              </span>
+                            )}
                           </td>
                         </tr>
                       );

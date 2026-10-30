@@ -2,13 +2,15 @@
   {
     "id": "alu-001",
     "marcaTemps": "15/07/2026 10:14:22",
-    "nomCognoms": "Marc Martínez Soler",
+    "nomCognoms": "Marc Martínez Soler (Actualitzat)",
     "dni": "47812903K",
     "correu": "marc.martinez@gmail.com",
     "contrasenya": "itaeb2024",
     "anyGraduacio": "2024",
     "especialitat": "Il·luminació, captació i tractament d'imatge",
-    "sectorsInteres": ["Il·luminació per arts escèniques", "Muntatge d’esdeveniments"],
+    "sectorsInteres": [
+      "Il·luminació per arts escèniques"
+    ],
     "notificacionsCorreu": true,
     "verificat": true
   },
@@ -21,7 +23,9 @@
     "contrasenya": "itaeb2023",
     "anyGraduacio": "2023",
     "especialitat": "Sonorització per a arts escèniques i espectacles",
-    "sectorsInteres": ["Sonorització per arts escèniques"],
+    "sectorsInteres": [
+      "Sonorització per arts escèniques"
+    ],
     "notificacionsCorreu": true,
     "verificat": true
   },
@@ -34,7 +38,11 @@
     "contrasenya": "itaeb2025",
     "anyGraduacio": "2025",
     "especialitat": "Realització de projectes d'audiovisuals i espectacles",
-    "sectorsInteres": ["Realització d’audiovisuals i espectacles", "Creació de continguts", "Postproducció"],
+    "sectorsInteres": [
+      "Realització d’audiovisuals i espectacles",
+      "Creació de continguts",
+      "Postproducció"
+    ],
     "notificacionsCorreu": true,
     "verificat": true
   },
@@ -47,7 +55,10 @@
     "contrasenya": "itaeb2024",
     "anyGraduacio": "2024",
     "especialitat": "Maquinària escènica i tecnologia de l'espectacle",
-    "sectorsInteres": ["Maquinària escènica", "Muntatge d’esdeveniments"],
+    "sectorsInteres": [
+      "Maquinària escènica",
+      "Muntatge d’esdeveniments"
+    ],
     "notificacionsCorreu": true,
     "verificat": true
   },
@@ -60,7 +71,12 @@
     "contrasenya": "itaeb2024",
     "anyGraduacio": "2024",
     "especialitat": "Realització de projectes d'audiovisuals i espectacles",
-    "sectorsInteres": ["Producció d’audiovisuals i espectacles", "Realització d’audiovisuals i espectacles", "Postproducció", "Creació de continguts"],
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
+      "Postproducció",
+      "Creació de continguts"
+    ],
     "notificacionsCorreu": true,
     "verificat": true
   }

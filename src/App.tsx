@@ -8,6 +8,7 @@ import { AlumniView } from './components/AlumniView';
 import { CompaniesView } from './components/CompaniesView';
 import { OffersView } from './components/OffersView';
 import { CoordinatorView } from './components/CoordinatorView';
+import { AlumniProfileView } from './components/AlumniProfileView';
 import { AccessDenied } from './components/AccessDenied';
 import { LoginModal } from './components/LoginModal';
 import { INITIAL_OFFERS, INITIAL_REGISTERED_ALUMNI } from './utils/jobData';
@@ -142,6 +143,16 @@ export default function App() {
     setRegisteredAlumni(prev => [record, ...prev]);
   };
 
+  const handleAlumniRecordUpdated = (updated: AlumniRecord) => {
+    setRegisteredAlumni(prev =>
+      prev.map(a =>
+        a.id === updated.id || a.correu.trim().toLowerCase() === updated.correu.trim().toLowerCase()
+          ? { ...a, ...updated, verificat: a.verificat } // Conserva sempre el camp verificat
+          : a
+      )
+    );
+  };
+
   const handleAlumniSynced = (syncedList: AlumniRecord[]) => {
     setRegisteredAlumni(prev => {
       const map = new Map<string, AlumniRecord>();
@@ -262,6 +273,7 @@ export default function App() {
             selectedOffer={selectedOffer}
             onSelectOffer={setSelectedOffer}
             onRefreshData={handleRefreshData}
+            onNavigate={setCurrentPage}
           />
         );
 
@@ -274,6 +286,26 @@ export default function App() {
             registeredAlumni={registeredAlumni}
             onRegisterAlumni={handleRegisterAlumni}
             onAlumniSynced={handleAlumniSynced}
+          />
+        );
+
+      case 'perfil':
+        if (!userSession.isMemberOfAlumniGroup) {
+          return (
+            <AccessDenied
+              onLoginSuccess={handleLoginSuccess}
+              onGoToAlumniInfo={() => setCurrentPage('alumni')}
+              registeredAlumni={registeredAlumni}
+            />
+          );
+        }
+        return (
+          <AlumniProfileView
+            userSession={userSession}
+            registeredAlumni={registeredAlumni}
+            onUpdateUserSession={handleLoginSuccess}
+            onAlumniRecordUpdated={handleAlumniRecordUpdated}
+            onNavigate={setCurrentPage}
           />
         );
 

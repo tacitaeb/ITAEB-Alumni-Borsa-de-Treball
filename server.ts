@@ -168,6 +168,7 @@ function parseAlumniFromRows(rows: string[][]): StoredAlumni[] {
   let sectorsCol = 7;
   let notifCol = 8;
   let timestampCol = 0;
+  let statusCol = -1;
 
   let startIndex = 0;
   if (hasHeader) {
@@ -191,6 +192,8 @@ function parseAlumniFromRows(rows: string[][]): StoredAlumni[] {
         notifCol = idx;
       } else if (h.includes('marca') || h.includes('temps') || h.includes('data')) {
         timestampCol = idx;
+      } else if (h.includes('verificat') || h.includes('estat') || h.includes('validat') || h.includes('aprovat') || h.includes('status')) {
+        statusCol = idx;
       }
     });
   }
@@ -216,6 +219,19 @@ function parseAlumniFromRows(rows: string[][]): StoredAlumni[] {
     const notificacionsCorreu = rawNotif.startsWith('s') || rawNotif.includes('yes') || rawNotif.includes('true');
     const marcaTemps = (row[timestampCol] || new Date().toLocaleDateString('ca-ES')).trim();
 
+    // Comprovació de la columna d'Estat / Verificat
+    let isVerified = true;
+    if (statusCol !== -1 && row[statusCol] !== undefined) {
+      const statusVal = normalizeText(row[statusCol] || '');
+      // Si la columna té valor, només és vàlid si conté si, ok, validat, verificat, aprovat
+      if (statusVal) {
+        isVerified = statusVal.includes('si') || statusVal.includes('ok') || statusVal.includes('validat') || statusVal.includes('verificat') || statusVal.includes('aprovat') || statusVal === 'true';
+      } else {
+        // Cel·la buida a la columna Verificat = Pendent de verificació (NO aprovat encara)
+        isVerified = false;
+      }
+    }
+
     alumniList.push({
       id: `alu-${i}-${email.replace(/[^a-zA-Z0-9]/g, '')}`,
       marcaTemps,
@@ -227,7 +243,7 @@ function parseAlumniFromRows(rows: string[][]): StoredAlumni[] {
       especialitat,
       sectorsInteres,
       notificacionsCorreu,
-      verificat: true,
+      verificat: isVerified,
     });
   }
 
@@ -480,6 +496,69 @@ async function startServer() {
     res.json(alumni);
   });
 
+  app.post('/api/update-alumni', (req, res) => {
+    const {
+      originalEmail,
+      nomCognoms,
+      correu,
+      contrasenya,
+      dni,
+      anyGraduacio,
+      especialitat,
+      sectorsInteres,
+      notificacionsCorreu,
+    } = req.body;
+
+    if (!originalEmail) {
+      res.status(400).json({ success: false, reason: "Falta el correu identificador de l'alumne." });
+      return;
+    }
+
+    const cleanOrigEmail = String(originalEmail).trim().toLowerCase();
+    const cleanNewEmail = correu ? String(correu).trim().toLowerCase() : cleanOrigEmail;
+
+    if (cleanNewEmail.endsWith('@itaeb.cat')) {
+      res.status(400).json({
+        success: false,
+        reason: "El correu de contacte no pot ser @itaeb.cat. Ha de ser un correu personal (Gmail, Outlook, etc.).",
+      });
+      return;
+    }
+
+    const list = readAlumni();
+    const idx = list.findIndex(a => a.correu.trim().toLowerCase() === cleanOrigEmail);
+
+    if (idx === -1) {
+      res.status(404).json({ success: false, reason: "No s'ha trobat l'alumne al registre." });
+      return;
+    }
+
+    const currentRecord = list[idx];
+
+    // Important: El camp verificat NO es pot modificar per l'usuari; es manté estrictament el que ja tenia
+    const updatedRecord: StoredAlumni = {
+      ...currentRecord,
+      nomCognoms: nomCognoms ? String(nomCognoms).trim() : currentRecord.nomCognoms,
+      correu: cleanNewEmail,
+      contrasenya: contrasenya ? String(contrasenya).trim() : currentRecord.contrasenya,
+      dni: dni ? normalizeDNI(String(dni)) : currentRecord.dni,
+      anyGraduacio: anyGraduacio ? String(anyGraduacio).trim() : currentRecord.anyGraduacio,
+      especialitat: especialitat ? String(especialitat).trim() : currentRecord.especialitat,
+      sectorsInteres: Array.isArray(sectorsInteres) ? sectorsInteres : currentRecord.sectorsInteres,
+      notificacionsCorreu: typeof notificacionsCorreu === 'boolean' ? notificacionsCorreu : currentRecord.notificacionsCorreu,
+      verificat: currentRecord.verificat, // PRESERVAT INTACTE
+    };
+
+    list[idx] = updatedRecord;
+    writeAlumni(list);
+
+    res.json({
+      success: true,
+      updatedRecord,
+      message: "Dades del teu perfil d'exalumne actualitzades correctament.",
+    });
+  });
+
   app.post('/api/verify-alumni', async (req, res) => {
     const { email, password } = req.body;
     const cleanEmail = (email || '').trim().toLowerCase();
@@ -564,6 +643,15 @@ async function startServer() {
         });
         return;
       }
+    }
+
+    // Comprovació estricta de la columna Verificat / Estat
+    if (alumni.verificat === false) {
+      res.status(403).json({
+        success: false,
+        reason: `El compte "${cleanEmail}" està pendent de validació oficial per part de Coordinació. Un cop s'hagin revisat els requisits acadèmics i s'hagi marcat com a verificat al full de càlcul o afegit al grup alumni@itaeb.cat, tindràs accés a la borsa.`,
+      });
+      return;
     }
 
     res.json({

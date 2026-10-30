@@ -22,12 +22,14 @@ import {
   RotateCw
 } from 'lucide-react';
 import { doSectorsMatch } from '../utils/jobData';
+import { PageId } from '../types';
 
 interface OffersViewProps {
   offers: JobOffer[];
   selectedOffer: JobOffer | null;
   onSelectOffer: (offer: JobOffer | null) => void;
   onRefreshData?: () => void;
+  onNavigate?: (page: PageId) => void;
 }
 
 export const OffersView: React.FC<OffersViewProps> = ({
@@ -35,6 +37,7 @@ export const OffersView: React.FC<OffersViewProps> = ({
   selectedOffer,
   onSelectOffer,
   onRefreshData,
+  onNavigate,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSector, setSelectedSector] = useState<string>('Tots');
@@ -122,6 +125,17 @@ export const OffersView: React.FC<OffersViewProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
+          {onNavigate && (
+            <button
+              onClick={() => onNavigate('perfil')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+              title="Modifica les teves dades personals, contrasenya i sectors d'interès"
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>El meu compte</span>
+            </button>
+          )}
+
           {onRefreshData && (
             <button
               onClick={onRefreshData}
