@@ -4,6 +4,8 @@ import { normalizeText, normalizeDNI, parseCSV } from './jobData';
 export interface GoogleSheetConfig {
   spreadsheetUrlOrId: string;
   sheetName: string; // Defaults to "Exalumnes"
+  coordinatorToken?: string;
+  appsScriptWebhookUrl?: string;
   lastSyncTime: string | null;
   lastSyncStatus: 'success' | 'error' | 'pending' | 'not_configured';
   lastError?: string;
@@ -26,6 +28,8 @@ export function getStoredSheetConfig(): GoogleSheetConfig {
       return {
         spreadsheetUrlOrId: parsed.spreadsheetUrlOrId || '',
         sheetName: parsed.sheetName || DEFAULT_SHEET_NAME,
+        coordinatorToken: parsed.coordinatorToken,
+        appsScriptWebhookUrl: parsed.appsScriptWebhookUrl,
         lastSyncTime: parsed.lastSyncTime || null,
         lastSyncStatus: parsed.lastSyncStatus || 'not_configured',
         lastError: parsed.lastError,
@@ -435,7 +439,13 @@ export async function fetchServerAlumni(): Promise<AlumniRecord[]> {
 export async function updateAlumniProfile(
   originalEmail: string,
   updatedData: Partial<AlumniRecord>
-): Promise<{ success: boolean; updatedRecord?: AlumniRecord; message: string }> {
+): Promise<{
+  success: boolean;
+  updatedRecord?: AlumniRecord;
+  message: string;
+  sheetUpdated?: boolean;
+  sheetMessage?: string;
+}> {
   const cleanOriginal = (originalEmail || '').trim().toLowerCase();
   const cleanNewEmail = updatedData.correu ? updatedData.correu.trim().toLowerCase() : cleanOriginal;
 
@@ -501,20 +511,29 @@ export async function updateAlumniProfile(
 
   // 2. Persistir al servidor backend
   try {
+    const cachedToken = typeof window !== 'undefined'
+      ? (window as unknown as { __GOOGLE_ACCESS_TOKEN__?: string }).__GOOGLE_ACCESS_TOKEN__ || localStorage.getItem('itaeb_google_access_token') || undefined
+      : undefined;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    if (cachedToken) {
+      headers['Authorization'] = `Bearer ${cachedToken}`;
+    }
+
     const res = await fetch('/api/update-alumni', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         originalEmail: cleanOriginal,
+        googleAccessToken: cachedToken,
         ...updatedData,
       }),
     });
 
     const text = await res.text();
-    let data: { success?: boolean; updatedRecord?: AlumniRecord; message?: string; reason?: string } | null = null;
+    let data: { success?: boolean; updatedRecord?: AlumniRecord; sheetUpdated?: boolean; message?: string; reason?: string } | null = null;
     if (text && text.trim().length > 0) {
       try {
         data = JSON.parse(text);
@@ -527,23 +546,96 @@ export async function updateAlumniProfile(
       return {
         success: true,
         updatedRecord: data.updatedRecord,
+        sheetUpdated: data.sheetUpdated,
+        sheetMessage: (data as { sheetMessage?: string }).sheetMessage,
         message: data.message || "Dades del teu perfil d'exalumne actualitzades correctament.",
       };
     }
 
     if (data && data.reason) {
-      return { success: false, message: data.reason };
+      return {
+        success: false,
+        message: data.reason,
+        sheetUpdated: false,
+        sheetMessage: (data as { sheetMessage?: string }).sheetMessage,
+      };
     }
   } catch (networkErr) {
     console.warn('Avís en enviar al servidor backend, dades guardades localment:', networkErr);
   }
 
-  // Retorn exitós amb el registre actualitzat
+  // Retorn de seguretat amb el registre actualitzat
   return {
     success: true,
     updatedRecord: localUpdatedRecord,
+    sheetUpdated: false,
+    sheetMessage: "Dades guardades només a la memòria local (servidor no disponible).",
     message: "Dades del teu perfil d'exalumne actualitzades correctament.",
   };
+}
+
+/**
+ * Desa la configuració del Google Sheet o el Webhook al servidor
+ */
+export async function saveSheetConfig(
+  config: Partial<GoogleSheetConfig> & { onlySaveConfig?: boolean }
+): Promise<{ success: boolean; config?: GoogleSheetConfig; message: string }> {
+  try {
+    const cachedToken = typeof window !== 'undefined'
+      ? (window as unknown as { __GOOGLE_ACCESS_TOKEN__?: string }).__GOOGLE_ACCESS_TOKEN__ || localStorage.getItem('itaeb_google_access_token') || undefined
+      : undefined;
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (cachedToken) {
+      headers['Authorization'] = `Bearer ${cachedToken}`;
+    }
+
+    const res = await fetch('/api/sheet-config', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(config),
+    });
+
+    const data = await res.json();
+    if (data && data.config) {
+      saveStoredSheetConfig(data.config);
+    }
+    return {
+      success: !!data.success,
+      config: data.config,
+      message: data.message || (data.success ? 'Configuració guardada correctament.' : 'Error al guardar.'),
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: err instanceof Error ? err.message : 'Error en connectar amb el servidor',
+    };
+  }
+}
+
+/**
+ * Prova la connexió d'escriptura mitjançant el Webhook d'Apps Script
+ */
+export async function testSheetWrite(
+  webhookUrl?: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch('/api/test-sheet-write', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webhookUrl }),
+    });
+    const data = await res.json();
+    return {
+      success: !!data.success,
+      message: data.message || (data.success ? "Test d'escriptura correcte." : "Error en provar l'escriptura."),
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: err instanceof Error ? err.message : 'Error en provar la connexió amb el servidor',
+    };
+  }
 }
 
 /**

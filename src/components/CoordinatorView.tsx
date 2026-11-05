@@ -22,7 +22,10 @@ import {
   UserCheck,
   AlertCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  Code,
+  Copy,
+  Check,
 } from 'lucide-react';
 import {
   OFFICIAL_FORMS,
@@ -39,6 +42,8 @@ import {
   authenticateAgainstGoogleSheet,
   importAlumniViaCsv,
   fetchServerAlumni,
+  saveSheetConfig,
+  testSheetWrite,
   GoogleSheetConfig,
   DEFAULT_SHEET_NAME,
 } from '../utils/googleSheetsSync';
@@ -54,6 +59,200 @@ import {
   appendAlumniToGoogleSheet,
   appendOfferToGoogleSheet,
 } from '../utils/googleSheetsApi';
+
+const APPS_SCRIPT_OFFICIAL_CODE = `/**
+ * ITAEB Borsa de Treball - Webhook d'Escriptura i Automatització
+ * Google Apps Script associat al full de càlcul: "ITAEB Borsa de Treball"
+ *
+ * 1. doPost(e): Rep canvis de perfil i nova contrasenya des de la web i actualitza
+ *    la fila corresponent a la fulla "Exalumnes", preservant "Verificat" (Columna J).
+ * 2. doGet(e): Permet provar que el Webhook estigui actiu i respongui.
+ * 3. onFormSubmit(e): Activador automàtic en omplir el formulari 1X1MzJa2RjFkcsPZS8BHRZHV1vBvxxaA54fwE4aMW8I0
+ *    Verifica DNI i Especialitat contra "Llistat alumni ITAEB" i afegeix a alumni@itaeb.cat.
+ */
+
+function doPost(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        message: "No s'han rebut dades POST."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    var payload = JSON.parse(e.postData.contents);
+    var action = payload.action || 'update_alumni';
+
+    // Acció 1: Test de ping / connexió des de la web
+    if (action === 'test' || action === 'ping') {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: "Connexió amb Google Apps Script establerta amb èxit! El full té permís d'escriptura actiu."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Acció 2: Actualització de perfil i contrasenya d'un exalumne
+    if (action === 'update_alumni') {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var targetSheetName = payload.sheetName || "Exalumnes";
+      var sheet = ss.getSheetByName(targetSheetName);
+
+      if (!sheet) {
+        return ContentService.createTextOutput(JSON.stringify({
+          success: false,
+          message: "No s'ha trobat la fulla '" + targetSheetName + "' al full de càlcul."
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      var targetEmail = (payload.originalEmail || "").toString().trim().toLowerCase();
+      if (!targetEmail) {
+        return ContentService.createTextOutput(JSON.stringify({
+          success: false,
+          message: "Falta el correu identificador de l'alumne."
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      var values = sheet.getDataRange().getValues();
+      var emailCol = 3; // Per defecte columna D (índex 3)
+
+      if (values.length > 0) {
+        var header = values[0];
+        for (var h = 0; h < header.length; h++) {
+          var colName = (header[h] + "").toLowerCase();
+          if (colName.indexOf('correu') !== -1 && colName.indexOf('notificaci') === -1) {
+            emailCol = h;
+            break;
+          }
+        }
+      }
+
+      var rowIndex = -1;
+      for (var i = 1; i < values.length; i++) {
+        var rowEmail = (values[i][emailCol] + "").toString().trim().toLowerCase();
+        if (rowEmail === targetEmail) {
+          rowIndex = i + 1; // 1-indexed a Google Sheets
+          break;
+        }
+      }
+
+      if (rowIndex === -1) {
+        return ContentService.createTextOutput(JSON.stringify({
+          success: false,
+          message: "No s'ha trobat cap alumne amb el correu " + targetEmail + " a la fulla " + targetSheetName
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      var a = payload.alumni || {};
+      // Columna 2 (B): Nom i cognoms
+      if (a.nomCognoms !== undefined && a.nomCognoms !== null) sheet.getRange(rowIndex, 2).setValue(a.nomCognoms);
+      // Columna 3 (C): DNI
+      if (a.dni !== undefined && a.dni !== null) sheet.getRange(rowIndex, 3).setValue(a.dni);
+      // Columna 4 (D): Correu
+      if (a.correu !== undefined && a.correu !== null) sheet.getRange(rowIndex, 4).setValue(a.correu);
+      // Columna 5 (E): Contrasenya (canviada per l'alumni a la web)
+      if (a.contrasenya !== undefined && a.contrasenya !== null) sheet.getRange(rowIndex, 5).setValue(a.contrasenya);
+      // Columna 6 (F): Any de graduació
+      if (a.anyGraduacio !== undefined && a.anyGraduacio !== null) sheet.getRange(rowIndex, 6).setValue(a.anyGraduacio);
+      // Columna 7 (G): Especialitat cursada
+      if (a.especialitat !== undefined && a.especialitat !== null) sheet.getRange(rowIndex, 7).setValue(a.especialitat);
+      // Columna 8 (H): Sectors d'interès
+      if (a.sectorsInteres !== undefined && a.sectorsInteres !== null) {
+        var sectorsStr = Array.isArray(a.sectorsInteres) ? a.sectorsInteres.join(", ") : a.sectorsInteres;
+        sheet.getRange(rowIndex, 8).setValue(sectorsStr);
+      }
+      // Columna 9 (I): Notificacions per correu (Sí/No)
+      if (typeof a.notificacionsCorreu === "boolean") {
+        sheet.getRange(rowIndex, 9).setValue(a.notificacionsCorreu ? "Sí" : "No");
+      }
+
+      // Columna 10 (J): "Verificat" NO es modifica mai per mantenir la protecció oficial
+
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        row: rowIndex,
+        message: "Fila " + rowIndex + " del full oficial actualitzada amb èxit a Google Drive."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      message: "Acció no reconeguda: " + action
+    })).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    status: "ok",
+    message: "ITAEB Borsa de Treball Webhook actiu i preparat."
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function normalitzarText(str) {
+  if (!str) return '';
+  return str.toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/g, '')
+    .replace(/·/g, '')
+    .replace(/['’]/g, ' ')
+    .replace(/[^a-z0-9\\s]/g, ' ')
+    .replace(/\\s+/g, ' ')
+    .trim();
+}
+
+function onFormSubmit(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetExalumnes = ss.getSheetByName("Exalumnes");
+  var sheetOficial = ss.getSheetByName("Llistat alumni ITAEB");
+  if (!sheetExalumnes || !sheetOficial) return;
+
+  var lastRow = sheetExalumnes.getLastRow();
+  var dniAlumne = sheetExalumnes.getRange(lastRow, 3).getValue().toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  var correuAlumne = sheetExalumnes.getRange(lastRow, 4).getValue().toString().trim().toLowerCase();
+  var especialitatAlumne = normalitzarText(sheetExalumnes.getRange(lastRow, 7).getValue());
+
+  var dadesOficials = sheetOficial.getDataRange().getValues();
+  var esGraduat = false;
+  var coincidenciaDNI = false;
+
+  for (var i = 1; i < dadesOficials.length; i++) {
+    var estudisOficials = normalitzarText(dadesOficials[i][0]);
+    var dniOficial = (dadesOficials[i][2] + "").toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+    if (dniOficial === dniAlumne && dniOficial.length > 5) {
+      coincidenciaDNI = true;
+      if (estudisOficials === especialitatAlumne ||
+          estudisOficials.indexOf(especialitatAlumne) !== -1 ||
+          especialitatAlumne.indexOf(estudisOficials) !== -1) {
+        esGraduat = true;
+        break;
+      }
+    }
+  }
+
+  var colVerificat = 10;
+  if (esGraduat) {
+    sheetExalumnes.getRange(lastRow, colVerificat).setValue("SÍ");
+    try {
+      AdminDirectory.Members.insert({ email: correuAlumne, role: "MEMBER" }, "alumni@itaeb.cat");
+    } catch(err) {
+      Logger.log("Avís Workspace: " + err);
+    }
+  } else if (coincidenciaDNI) {
+    sheetExalumnes.getRange(lastRow, colVerificat).setValue("PENDENT (Especialitat diferent)");
+  } else {
+    sheetExalumnes.getRange(lastRow, colVerificat).setValue("PENDENT (DNI no trobat)");
+  }
+}
+`;
 
 interface CoordinatorViewProps {
   offers: JobOffer[];
@@ -130,6 +329,86 @@ export const CoordinatorView: React.FC<CoordinatorViewProps> = ({
     }
   };
 
+  // Apps Script Webhook state for Google Sheet 2-way writeback
+  const [webhookUrlInput, setWebhookUrlInput] = useState(sheetConfig.appsScriptWebhookUrl || '');
+  const [isSavingWebhook, setIsSavingWebhook] = useState(false);
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [webhookFeedback, setWebhookFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [showAppsScriptCode, setShowAppsScriptCode] = useState(false);
+  const [copiedScript, setCopiedScript] = useState(false);
+
+  const handleSaveWebhook = async () => {
+    setIsSavingWebhook(true);
+    setWebhookFeedback(null);
+    try {
+      const res = await saveSheetConfig({
+        appsScriptWebhookUrl: webhookUrlInput.trim(),
+        onlySaveConfig: true,
+      });
+      if (res.success) {
+        setSheetConfig(prev => ({ ...prev, appsScriptWebhookUrl: webhookUrlInput.trim() }));
+        setWebhookFeedback({
+          success: true,
+          message: "URL del Webhook de Google Apps Script desada correctament al servidor!",
+        });
+      } else {
+        setWebhookFeedback({
+          success: false,
+          message: res.message || 'Error en desar el Webhook.',
+        });
+      }
+    } catch (err) {
+      setWebhookFeedback({
+        success: false,
+        message: err instanceof Error ? err.message : 'Error en desar el Webhook.',
+      });
+    } finally {
+      setIsSavingWebhook(false);
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    const url = webhookUrlInput.trim() || sheetConfig.appsScriptWebhookUrl;
+    if (!url) {
+      setWebhookFeedback({
+        success: false,
+        message: "Enganxa primer l'URL del Webhook de Google Apps Script (que acaba en /exec).",
+      });
+      return;
+    }
+    setIsTestingWebhook(true);
+    setWebhookFeedback(null);
+    try {
+      const res = await testSheetWrite(url);
+      setWebhookFeedback({
+        success: res.success,
+        message: res.message,
+      });
+      if (res.success && url !== sheetConfig.appsScriptWebhookUrl) {
+        await saveSheetConfig({
+          appsScriptWebhookUrl: url,
+          onlySaveConfig: true,
+        });
+        setSheetConfig(prev => ({ ...prev, appsScriptWebhookUrl: url }));
+      }
+    } catch (err) {
+      setWebhookFeedback({
+        success: false,
+        message: err instanceof Error ? err.message : "Error durant el test d'escriptura.",
+      });
+    } finally {
+      setIsTestingWebhook(false);
+    }
+  };
+
+  const handleCopyScript = () => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(APPS_SCRIPT_OFFICIAL_CODE);
+      setCopiedScript(true);
+      setTimeout(() => setCopiedScript(false), 2500);
+    }
+  };
+
   // Google Account & OAuth state
   const [googleUser, setGoogleUser] = useState<{ email: string; name: string } | null>(null);
   const [isSigningInGoogle, setIsSigningInGoogle] = useState(false);
@@ -163,7 +442,14 @@ export const CoordinatorView: React.FC<CoordinatorViewProps> = ({
         setCachedGoogleAccessToken(res.accessToken);
         if (typeof window !== 'undefined') {
           (window as unknown as { __GOOGLE_ACCESS_TOKEN__?: string }).__GOOGLE_ACCESS_TOKEN__ = res.accessToken;
+          localStorage.setItem('itaeb_google_access_token', res.accessToken);
         }
+        // Persistir token al servidor per permetre actualització de files
+        saveSheetConfig({
+          coordinatorToken: res.accessToken,
+          onlySaveConfig: true,
+        }).catch(e => console.warn('Error guardant token al servidor:', e));
+
         setSheetFeedback({
           success: true,
           message: `Compte connectat (${res.user.email}). Ara la web té permís d'Edició al Google Sheets!`,
@@ -1076,6 +1362,153 @@ function onFormSubmit(e) {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Card: Google Apps Script Webhook per a Escriptura Directa al Full */}
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 space-y-5 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200">
+                  <Code className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                    <span>Escriptura en Temps Real al Full (Google Apps Script Webhook)</span>
+                    {sheetConfig.appsScriptWebhookUrl ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        Actiu
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                        Pendent de configurar
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Permet que els canvis de contrasenya i perfil que fan els alumni a la web s'escriguin directament a la seva fila del Google Spreadsheet "ITAEB Borsa de Treball" (Drive).
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAppsScriptCode(!showAppsScriptCode)}
+                className="px-3.5 py-1.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 transition cursor-pointer flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
+              >
+                <Code className="w-3.5 h-3.5 text-sky-700" />
+                <span>{showAppsScriptCode ? 'Amagar codi de l’script' : 'Veure codi de l’script'}</span>
+              </button>
+            </div>
+
+            {/* Input per a la URL del Webhook */}
+            <div className="space-y-2 pt-1">
+              <label className="block text-xs font-bold text-slate-700">
+                URL de l'aplicació web (Google Apps Script Webhook URL):
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="url"
+                  value={webhookUrlInput}
+                  onChange={e => setWebhookUrlInput(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                  className="flex-1 px-3.5 py-2 text-xs font-mono rounded-xl bg-slate-50 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white"
+                />
+                <button
+                  type="button"
+                  disabled={isSavingWebhook}
+                  onClick={handleSaveWebhook}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-xs flex items-center justify-center gap-1.5 shrink-0"
+                >
+                  <span>{isSavingWebhook ? 'Desant...' : 'Desar URL'}</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isTestingWebhook || (!webhookUrlInput.trim() && !sheetConfig.appsScriptWebhookUrl)}
+                  onClick={handleTestWebhook}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-xs flex items-center justify-center gap-1.5 shrink-0"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isTestingWebhook ? 'animate-spin' : ''}`} />
+                  <span>{isTestingWebhook ? 'Comprovant...' : 'Provar escriptura'}</span>
+                </button>
+              </div>
+            </div>
+
+            {webhookFeedback && (
+              <div
+                className={`p-3 rounded-xl text-xs flex items-start gap-2 ${
+                  webhookFeedback.success
+                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-900'
+                    : 'bg-rose-50 border border-rose-200 text-rose-900'
+                }`}
+              >
+                {webhookFeedback.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                )}
+                <span>{webhookFeedback.message}</span>
+              </div>
+            )}
+
+            {/* Guia desplegable de Google Apps Script */}
+            {showAppsScriptCode && (
+              <div className="mt-4 p-5 bg-slate-900 text-slate-100 rounded-2xl border border-slate-800 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+                  <div>
+                    <span className="font-bold text-sm text-amber-400 block">
+                      Instruccions per desplegar el Webhook a Google Sheets (1 minut)
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      Codi oficial per a sincronització bidireccional i verificació automàtica del formulari.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyScript}
+                    className="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition cursor-pointer flex items-center gap-1.5 self-start sm:self-auto shrink-0 shadow-xs"
+                  >
+                    {copiedScript ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedScript ? 'Codi copiat!' : 'Copiar codi complet'}</span>
+                  </button>
+                </div>
+
+                <ol className="list-decimal list-inside text-xs text-slate-300 space-y-1.5 leading-relaxed">
+                  <li>
+                    Obre el full de càlcul <strong>"ITAEB Borsa de Treball"</strong> a Google Drive amb el compte <code className="text-amber-300">tac@itaeb.cat</code>.
+                  </li>
+                  <li>
+                    Ves al menú superior: <strong>Extensions</strong> → <strong>Apps Script</strong>.
+                  </li>
+                  <li>
+                    Esborra qualsevol codi existent i enganxa el codi que hi ha a sota (clica el botó "Copiar codi complet").
+                  </li>
+                  <li>
+                    Clica a dalt a la dreta al botó blau: <strong>Implementa</strong> (Deploy) → <strong>Implementació nova</strong>.
+                  </li>
+                  <li>
+                    Fes clic a la icona d'engranatge i tria: <strong>Aplicació web</strong> (Web app).
+                  </li>
+                  <li>
+                    A <em>"Executa com a"</em>: tria <strong>Jo (tac@itaeb.cat)</strong>.
+                  </li>
+                  <li>
+                    A <em>"Qui hi té accés"</em>: tria <strong>Qualsevol persona</strong> (Anyone).
+                  </li>
+                  <li>
+                    Clica <strong>Implementa</strong>, atorga permisos si te'ls demana i copia l'<strong>URL de l'aplicació web</strong> (acaba en <code className="text-emerald-400">/exec</code>).
+                  </li>
+                  <li>
+                    Enganxa l'URL copiat a la casella de dalt i clica <strong>"Desar URL"</strong> i després <strong>"Provar escriptura"</strong>.
+                  </li>
+                </ol>
+
+                <div className="relative">
+                  <pre className="p-4 bg-slate-950 rounded-xl overflow-x-auto text-[11px] font-mono text-emerald-300 border border-slate-800 max-h-72">
+                    {APPS_SCRIPT_OFFICIAL_CODE}
+                  </pre>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Card 2: Interactive Credential Tester for Coordinator */}

@@ -18,6 +18,8 @@ if (!fs.existsSync(DATA_DIR)) {
 interface StoredSheetConfig {
   spreadsheetUrlOrId: string;
   sheetName: string;
+  coordinatorToken?: string;
+  appsScriptWebhookUrl?: string;
   lastSyncTime: string | null;
   lastSyncStatus: 'success' | 'error' | 'pending' | 'not_configured';
   lastError?: string;
@@ -374,6 +376,157 @@ async function fetchGoogleSheetRows(spreadsheetUrlOrId: string, sheetName: strin
   );
 }
 
+async function updateGoogleSheetRow(
+  spreadsheetUrlOrId: string,
+  sheetName: string,
+  originalEmail: string,
+  updated: StoredAlumni,
+  authToken?: string,
+  webhookUrl?: string
+): Promise<{ success: boolean; message: string; sheetUpdated: boolean }> {
+  const cleanId = extractSpreadsheetId(spreadsheetUrlOrId);
+  const cleanOrigEmail = originalEmail.trim().toLowerCase();
+
+  // 1. Intent mitjançant Apps Script Webhook si està configurat (no depèn de tokens que caduquen)
+  if (webhookUrl && webhookUrl.startsWith('https://script.google.com/')) {
+    try {
+      console.log(`[GoogleSheetSync] Executant Webhook Apps Script per a: ${cleanOrigEmail}`);
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_alumni',
+          originalEmail: cleanOrigEmail,
+          sheetName,
+          alumni: updated,
+        }),
+        redirect: 'follow',
+      });
+
+      const text = await res.text();
+      let json: { success?: boolean; message?: string; error?: string; row?: number } | null = null;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        console.warn('[GoogleSheetSync] Resposta no JSON del Webhook:', text.slice(0, 100));
+      }
+
+      if (json && json.success) {
+        return {
+          success: true,
+          message: json.message || `S'ha actualitzat la fila de l'exalumne directament al full "ITAEB Borsa de Treball" (Google Drive).`,
+          sheetUpdated: true,
+        };
+      } else if (json && (json.message || json.error)) {
+        return {
+          success: false,
+          message: `Avís del Google Sheet: ${json.message || json.error}`,
+          sheetUpdated: false,
+        };
+      } else if (res.ok) {
+        return {
+          success: true,
+          message: `Google Sheet actualitzat correctament via Webhook (HTTP ${res.status}).`,
+          sheetUpdated: true,
+        };
+      }
+    } catch (e) {
+      console.warn('[GoogleSheetSync] Error en cridar el Webhook Apps Script:', e);
+    }
+  }
+
+  // 2. Intent mitjançant Google Sheets REST API v4 (amb token Bearer de Google)
+  if (authToken && cleanId) {
+    try {
+      const rows = await fetchGoogleSheetRows(cleanId, sheetName, authToken);
+      if (rows && rows.length > 0) {
+        const firstRow = rows[0].map(h => normalizeText(h));
+        let emailCol = 3;
+        firstRow.forEach((h, idx) => {
+          if (h.includes('notificacio') || h.includes('avis') || h.includes('rebre') || h.includes('ofertes')) {
+            // no és el correu
+          } else if (h.includes('correu') || h.includes('email') || h.includes('mail')) {
+            emailCol = idx;
+          }
+        });
+
+        let rowIndex = -1;
+        let origRow: string[] = [];
+        for (let i = 1; i < rows.length; i++) {
+          if ((rows[i][emailCol] || '').trim().toLowerCase() === cleanOrigEmail) {
+            rowIndex = i + 1; // 1-indexed a Google Sheets
+            origRow = rows[i];
+            break;
+          }
+        }
+
+        if (rowIndex !== -1) {
+          const timestamp = origRow[0] || updated.marcaTemps || new Date().toLocaleDateString('ca-ES');
+          const verificatVal = origRow[9] || (updated.verificat ? 'Sí' : 'No'); // PRESERVAT: Mai modificat per l'alumni
+
+          const rowData = [
+            timestamp,
+            updated.nomCognoms,
+            updated.dni,
+            updated.correu,
+            updated.contrasenya,
+            updated.anyGraduacio,
+            updated.especialitat,
+            Array.isArray(updated.sectorsInteres) ? updated.sectorsInteres.join(', ') : updated.sectorsInteres,
+            updated.notificacionsCorreu ? 'Sí' : 'No',
+            verificatVal,
+          ];
+
+          const range = encodeURIComponent(`${sheetName}!A${rowIndex}:J${rowIndex}`);
+          const v4Url = `https://sheets.googleapis.com/v4/spreadsheets/${cleanId}/values/${range}?valueInputOption=USER_ENTERED`;
+
+          const updateRes = await fetch(v4Url, {
+            method: 'PUT',
+            headers: {
+              Authorization: `Bearer ${authToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              range: `${sheetName}!A${rowIndex}:J${rowIndex}`,
+              majorDimension: 'ROWS',
+              values: [rowData],
+            }),
+          });
+
+          if (updateRes.ok) {
+            return {
+              success: true,
+              message: `S'ha actualitzat la fila ${rowIndex} del full oficial "ITAEB Borsa de Treball" directament a Google Sheets.`,
+              sheetUpdated: true,
+            };
+          } else {
+            const errData = await updateRes.json().catch(() => null);
+            console.warn('Google Sheets v4 API error:', errData);
+            return {
+              success: false,
+              message: `Error de Google Sheets API (${updateRes.status}): ${errData?.error?.message || 'Permís denegat'}`,
+              sheetUpdated: false,
+            };
+          }
+        }
+      }
+    } catch (apiErr) {
+      console.warn('Error updating Google Sheets via API v4:', apiErr);
+      return {
+        success: false,
+        message: apiErr instanceof Error ? apiErr.message : 'Error en connectar amb Google Sheets',
+        sheetUpdated: false,
+      };
+    }
+  }
+
+  return {
+    success: false,
+    message: "No hi ha cap sessió de Google amb permís d'Edició ni Webhook actiu per escriure al Google Drive.",
+    sheetUpdated: false,
+  };
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -398,19 +551,36 @@ async function startServer() {
   });
 
   app.post('/api/sheet-config', async (req, res) => {
-    const { spreadsheetUrlOrId, sheetName } = req.body;
+    const { spreadsheetUrlOrId, sheetName, coordinatorToken, appsScriptWebhookUrl } = req.body || {};
     const authHeader = req.headers.authorization;
     const bearerToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
     const current = readConfig();
 
     const targetUrlOrId = (spreadsheetUrlOrId !== undefined ? spreadsheetUrlOrId : current.spreadsheetUrlOrId).trim();
     const targetSheet = (sheetName !== undefined ? sheetName : current.sheetName || 'Exalumnes').trim();
+    const updatedCoordinatorToken = coordinatorToken !== undefined ? coordinatorToken : (bearerToken || current.coordinatorToken);
+    const updatedWebhookUrl = appsScriptWebhookUrl !== undefined ? appsScriptWebhookUrl.trim() : current.appsScriptWebhookUrl;
+
+    if (req.body?.onlySaveConfig) {
+      const updated: StoredSheetConfig = {
+        ...current,
+        spreadsheetUrlOrId: targetUrlOrId || current.spreadsheetUrlOrId,
+        sheetName: targetSheet || current.sheetName || 'Exalumnes',
+        appsScriptWebhookUrl: updatedWebhookUrl !== undefined ? updatedWebhookUrl : current.appsScriptWebhookUrl,
+        coordinatorToken: updatedCoordinatorToken !== undefined ? updatedCoordinatorToken : current.coordinatorToken,
+      };
+      writeConfig(updated);
+      res.json({ success: true, config: updated, message: 'Configuració del full i webhook desada correctament.' });
+      return;
+    }
 
     if (!targetUrlOrId) {
       const updated: StoredSheetConfig = {
         ...current,
         spreadsheetUrlOrId: '',
         sheetName: targetSheet,
+        coordinatorToken: updatedCoordinatorToken,
+        appsScriptWebhookUrl: updatedWebhookUrl,
         lastSyncStatus: 'not_configured',
         lastError: 'Falta l’enllaç o identificador del Google Spreadsheet.',
       };
@@ -420,26 +590,31 @@ async function startServer() {
     }
 
     try {
-      const rows = await fetchGoogleSheetRows(targetUrlOrId, targetSheet, bearerToken);
+      const activeToken = updatedCoordinatorToken || bearerToken;
+      const rows = await fetchGoogleSheetRows(targetUrlOrId, targetSheet, activeToken);
       const alumni = parseAlumniFromRows(rows);
-      writeAlumni(alumni);
+      const currentList = readAlumni();
+      const merged = mergeAlumniWithExisting(alumni, currentList);
+      writeAlumni(merged);
 
       const now = `${new Date().toLocaleDateString('ca-ES')} ${new Date().toLocaleTimeString('ca-ES')}`;
       const newConfig: StoredSheetConfig = {
         spreadsheetUrlOrId: targetUrlOrId,
         sheetName: targetSheet,
+        coordinatorToken: updatedCoordinatorToken,
+        appsScriptWebhookUrl: updatedWebhookUrl,
         lastSyncTime: now,
         lastSyncStatus: 'success',
         lastError: undefined,
-        totalAlumniInSheet: alumni.length,
+        totalAlumniInSheet: merged.length,
       };
       writeConfig(newConfig);
 
       res.json({
         success: true,
         config: newConfig,
-        total: alumni.length,
-        message: `S'han sincronitzat correctament ${alumni.length} exalumnes des de la fulla "${targetSheet}".`,
+        total: merged.length,
+        message: `S'han sincronitzat correctament ${merged.length} exalumnes des de la fulla "${targetSheet}".`,
       });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
@@ -510,6 +685,59 @@ async function startServer() {
     }
   });
 
+  app.post('/api/test-sheet-write', async (req, res) => {
+    const { webhookUrl } = req.body || {};
+    const cfg = readConfig();
+    const targetWebhook = (webhookUrl || cfg.appsScriptWebhookUrl || '').trim();
+
+    if (!targetWebhook) {
+      res.status(400).json({
+        success: false,
+        message: "No s'ha configurat cap URL de Webhook. Enganxa l'URL de l'Apps Script que acaba en /exec.",
+      });
+      return;
+    }
+
+    try {
+      console.log(`[GoogleSheetSync] Provant Webhook: ${targetWebhook}`);
+      const resp = await fetch(targetWebhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'test',
+          sheetName: cfg.sheetName || 'Exalumnes',
+        }),
+        redirect: 'follow',
+      });
+
+      const text = await resp.text();
+      let data: { success?: boolean; message?: string; error?: string } | null = null;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        // text format
+      }
+
+      if (data && data.success) {
+        res.json({
+          success: true,
+          message: data.message || "Connexió amb Google Apps Script establerta amb èxit! El full té permís d'escriptura actiu.",
+        });
+      } else {
+        res.json({
+          success: false,
+          message: data?.error || data?.message || `El Webhook ha respost amb codi HTTP ${resp.status}: ${text.slice(0, 150)}`,
+        });
+      }
+    } catch (err) {
+      console.warn('[GoogleSheetSync] Error provant Webhook:', err);
+      res.status(500).json({
+        success: false,
+        message: `Error en connectar amb el Webhook: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  });
+
   app.post('/api/import-csv', (req, res) => {
     const { csvContent } = req.body;
     if (!csvContent || typeof csvContent !== 'string') {
@@ -577,7 +805,7 @@ async function startServer() {
     res.json(alumni);
   });
 
-  app.post('/api/update-alumni', (req, res) => {
+  app.post('/api/update-alumni', async (req, res) => {
     try {
       const {
         originalEmail,
@@ -650,10 +878,41 @@ async function startServer() {
 
       writeAlumni(list);
 
+      // Actualització directa al full de Google Sheets "ITAEB Borsa de Treball"
+      const cfg = readConfig();
+      const authHeader = req.headers.authorization;
+      const bearerToken = authHeader && authHeader.startsWith('Bearer ')
+        ? authHeader.substring(7)
+        : (req.body?.googleAccessToken || cfg.coordinatorToken);
+
+      let sheetUpdated = false;
+      let sheetMsg = '';
+
+      if (cfg.spreadsheetUrlOrId) {
+        try {
+          const sheetRes = await updateGoogleSheetRow(
+            cfg.spreadsheetUrlOrId,
+            cfg.sheetName || 'Exalumnes',
+            cleanOrigEmail,
+            updatedRecord,
+            bearerToken,
+            cfg.appsScriptWebhookUrl
+          );
+          sheetUpdated = sheetRes.sheetUpdated;
+          sheetMsg = sheetRes.message;
+        } catch (sheetErr) {
+          console.warn('Avís en actualitzar el Google Sheet:', sheetErr);
+        }
+      }
+
       res.json({
         success: true,
         updatedRecord,
-        message: "Dades del teu perfil d'exalumne actualitzades correctament.",
+        sheetUpdated,
+        message: sheetUpdated
+          ? "Dades del teu perfil actualitzades i sincronitzades directament al full de Google Sheets!"
+          : "Dades desades correctament a la plataforma.",
+        sheetMessage: sheetMsg,
       });
     } catch (err) {
       console.error('Error updating alumni:', err);

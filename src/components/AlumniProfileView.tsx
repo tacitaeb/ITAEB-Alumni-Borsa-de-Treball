@@ -16,7 +16,8 @@ import {
   ArrowLeft,
   ShieldCheck,
   Building2,
-  Briefcase
+  Briefcase,
+  AlertTriangle,
 } from 'lucide-react';
 import { ALUMNI_FORM_SECTORS } from '../utils/jobData';
 import { updateAlumniProfile } from '../utils/googleSheetsSync';
@@ -27,6 +28,13 @@ interface AlumniProfileViewProps {
   onUpdateUserSession: (session: UserSession) => void;
   onAlumniRecordUpdated: (updated: AlumniRecord) => void;
   onNavigate: (page: PageId) => void;
+}
+
+interface FeedbackState {
+  success: boolean;
+  message: string;
+  sheetUpdated?: boolean;
+  sheetMessage?: string;
 }
 
 export const AlumniProfileView: React.FC<AlumniProfileViewProps> = ({
@@ -58,7 +66,7 @@ export const AlumniProfileView: React.FC<AlumniProfileViewProps> = ({
 
   const [showPassword, setShowPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [feedback, setFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<FeedbackState | null>(null);
 
   useEffect(() => {
     if (currentRecord) {
@@ -123,7 +131,12 @@ export const AlumniProfileView: React.FC<AlumniProfileViewProps> = ({
       });
 
       if (res.success && res.updatedRecord) {
-        setFeedback({ success: true, message: res.message });
+        setFeedback({
+          success: true,
+          message: res.message,
+          sheetUpdated: res.sheetUpdated,
+          sheetMessage: res.sheetMessage,
+        });
         setContrasenya(res.updatedRecord.contrasenya || '');
         setNomCognoms(res.updatedRecord.nomCognoms);
         setCorreu(res.updatedRecord.correu);
@@ -134,7 +147,12 @@ export const AlumniProfileView: React.FC<AlumniProfileViewProps> = ({
           email: res.updatedRecord.correu,
         });
       } else {
-        setFeedback({ success: false, message: res.message });
+        setFeedback({
+          success: false,
+          message: res.message,
+          sheetUpdated: false,
+          sheetMessage: res.sheetMessage,
+        });
       }
     } catch (err) {
       setFeedback({
@@ -417,18 +435,44 @@ export const AlumniProfileView: React.FC<AlumniProfileViewProps> = ({
         {/* Feedback message */}
         {feedback && (
           <div
-            className={`p-3.5 rounded-2xl text-xs flex items-start gap-2.5 ${
+            className={`p-4 rounded-2xl text-xs space-y-2 border ${
               feedback.success
-                ? 'bg-emerald-50 border border-emerald-300 text-emerald-950'
-                : 'bg-rose-50 border border-rose-300 text-rose-950'
+                ? feedback.sheetUpdated
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                  : 'bg-amber-50 border-amber-300 text-amber-950'
+                : 'bg-rose-50 border-rose-300 text-rose-950'
             }`}
           >
-            {feedback.success ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            )}
-            <span>{feedback.message}</span>
+            <div className="flex items-start gap-2.5">
+              {feedback.success ? (
+                feedback.sheetUpdated ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                )
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              )}
+              <div className="space-y-1">
+                <span className="font-bold text-sm block">
+                  {feedback.success
+                    ? feedback.sheetUpdated
+                      ? 'Dades i contrasenya actualitzades directament a Google Sheets!'
+                      : 'Canvis guardats a la plataforma (Pendent de sincronitzar a Google Drive)'
+                    : 'No s’han pogut desar els canvis'}
+                </span>
+                <p className="leading-relaxed">
+                  {feedback.success && !feedback.sheetUpdated
+                    ? "El teu perfil i la nova contrasenya s'han guardat a la borsa de treball. Tanmateix, el full de càlcul de Google Drive no s'ha actualitzat directament perquè el canal d'escriptura (Google Apps Script Webhook) està pendent de configurar pel Coordinador a l'Àrea del Coordinador."
+                    : feedback.message}
+                </p>
+                {feedback.sheetMessage && (
+                  <p className="text-[11px] opacity-90 font-mono bg-black/5 p-2 rounded-lg mt-1 border border-black/10">
+                    Estat del full de Google: {feedback.sheetMessage}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
