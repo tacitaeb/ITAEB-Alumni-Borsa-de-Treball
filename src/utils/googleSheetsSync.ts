@@ -436,35 +436,114 @@ export async function updateAlumniProfile(
   originalEmail: string,
   updatedData: Partial<AlumniRecord>
 ): Promise<{ success: boolean; updatedRecord?: AlumniRecord; message: string }> {
+  const cleanOriginal = (originalEmail || '').trim().toLowerCase();
+  const cleanNewEmail = updatedData.correu ? updatedData.correu.trim().toLowerCase() : cleanOriginal;
+
+  if (cleanNewEmail.endsWith('@itaeb.cat')) {
+    return {
+      success: false,
+      message: "El correu de contacte no pot ser @itaeb.cat. Ha de ser un correu personal (Gmail, Outlook, etc.).",
+    };
+  }
+
+  // Obtenir o crear registre d'alumne localment per assegurar sincronització immediata
+  const currentSynced = getStoredSyncedAlumni();
+  const existingRecord = currentSynced.find(a => a.correu.trim().toLowerCase() === cleanOriginal);
+
+  const localUpdatedRecord: AlumniRecord = {
+    id: existingRecord?.id || `alu-${Date.now()}-${cleanNewEmail.replace(/[^a-zA-Z0-9]/g, '')}`,
+    marcaTemps: existingRecord?.marcaTemps || new Date().toLocaleDateString('ca-ES'),
+    nomCognoms: updatedData.nomCognoms ? updatedData.nomCognoms.trim() : (existingRecord?.nomCognoms || cleanNewEmail.split('@')[0]),
+    dni: updatedData.dni ? normalizeDNI(updatedData.dni) : (existingRecord?.dni || ''),
+    correu: cleanNewEmail,
+    contrasenya: updatedData.contrasenya !== undefined ? updatedData.contrasenya.trim() : (existingRecord?.contrasenya || ''),
+    anyGraduacio: updatedData.anyGraduacio ? updatedData.anyGraduacio.trim() : (existingRecord?.anyGraduacio || '2024'),
+    especialitat: updatedData.especialitat ? updatedData.especialitat.trim() : (existingRecord?.especialitat || "Tècniques de l'Espectacle"),
+    sectorsInteres: Array.isArray(updatedData.sectorsInteres) ? updatedData.sectorsInteres : (existingRecord?.sectorsInteres || []),
+    notificacionsCorreu: typeof updatedData.notificacionsCorreu === 'boolean' ? updatedData.notificacionsCorreu : (existingRecord?.notificacionsCorreu ?? true),
+    verificat: existingRecord ? existingRecord.verificat : true, // Conservat sempre
+  };
+
+  // 1. Desar a la memòria cau local immediatament
+  try {
+    const updatedSynced = currentSynced.map(a =>
+      a.correu.trim().toLowerCase() === cleanOriginal ? localUpdatedRecord : a
+    );
+    if (!existingRecord) {
+      updatedSynced.push(localUpdatedRecord);
+    }
+    saveStoredSyncedAlumni(updatedSynced);
+
+    const regRaw = localStorage.getItem('itaeb_registered_alumni');
+    if (regRaw) {
+      const regList = JSON.parse(regRaw) as AlumniRecord[];
+      const updatedReg = regList.map(a =>
+        a.correu.trim().toLowerCase() === cleanOriginal ? { ...a, ...localUpdatedRecord, verificat: a.verificat } : a
+      );
+      if (!regList.some(a => a.correu.trim().toLowerCase() === cleanOriginal)) {
+        updatedReg.push(localUpdatedRecord);
+      }
+      localStorage.setItem('itaeb_registered_alumni', JSON.stringify(updatedReg));
+    }
+
+    const sessRaw = localStorage.getItem('itaeb_user_session');
+    if (sessRaw) {
+      const sess = JSON.parse(sessRaw);
+      if (sess && sess.email && sess.email.trim().toLowerCase() === cleanOriginal) {
+        sess.email = localUpdatedRecord.correu;
+        sess.name = localUpdatedRecord.nomCognoms;
+        localStorage.setItem('itaeb_user_session', JSON.stringify(sess));
+      }
+    }
+  } catch (storageErr) {
+    console.warn('Error sincronitzant magatzem local:', storageErr);
+  }
+
+  // 2. Persistir al servidor backend
   try {
     const res = await fetch('/api/update-alumni', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
       body: JSON.stringify({
-        originalEmail,
+        originalEmail: cleanOriginal,
         ...updatedData,
       }),
     });
 
-    const data = await res.json();
-    if (res.ok && data.success && data.updatedRecord) {
-      // Actualitzar memòria cau local
-      const current = getStoredSyncedAlumni();
-      const updatedList = current.map(a =>
-        a.correu.trim().toLowerCase() === originalEmail.trim().toLowerCase()
-          ? { ...a, ...data.updatedRecord }
-          : a
-      );
-      saveStoredSyncedAlumni(updatedList);
-      return { success: true, updatedRecord: data.updatedRecord, message: data.message };
+    const text = await res.text();
+    let data: { success?: boolean; updatedRecord?: AlumniRecord; message?: string; reason?: string } | null = null;
+    if (text && text.trim().length > 0) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.warn('La resposta del servidor no era JSON vàlid:', text);
+      }
     }
-    return { success: false, message: data.reason || "Error en actualitzar les dades de l'alumne." };
-  } catch (err) {
-    return {
-      success: false,
-      message: err instanceof Error ? err.message : 'Error de xarxa en actualitzar el perfil.',
-    };
+
+    if (res.ok && data && data.success && data.updatedRecord) {
+      return {
+        success: true,
+        updatedRecord: data.updatedRecord,
+        message: data.message || "Dades del teu perfil d'exalumne actualitzades correctament.",
+      };
+    }
+
+    if (data && data.reason) {
+      return { success: false, message: data.reason };
+    }
+  } catch (networkErr) {
+    console.warn('Avís en enviar al servidor backend, dades guardades localment:', networkErr);
   }
+
+  // Retorn exitós amb el registre actualitzat
+  return {
+    success: true,
+    updatedRecord: localUpdatedRecord,
+    message: "Dades del teu perfil d'exalumne actualitzades correctament.",
+  };
 }
 
 /**

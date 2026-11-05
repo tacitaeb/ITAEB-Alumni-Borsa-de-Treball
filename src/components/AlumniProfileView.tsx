@@ -124,6 +124,9 @@ export const AlumniProfileView: React.FC<AlumniProfileViewProps> = ({
 
       if (res.success && res.updatedRecord) {
         setFeedback({ success: true, message: res.message });
+        setContrasenya(res.updatedRecord.contrasenya || '');
+        setNomCognoms(res.updatedRecord.nomCognoms);
+        setCorreu(res.updatedRecord.correu);
         onAlumniRecordUpdated(res.updatedRecord);
         onUpdateUserSession({
           ...userSession,

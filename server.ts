@@ -31,6 +31,7 @@ interface StoredAlumni {
   dni: string;
   correu: string;
   contrasenya: string;
+  localPassword?: string;
   anyGraduacio: string;
   especialitat: string;
   sectorsInteres: string[];
@@ -265,6 +266,29 @@ function parseAlumniFromRows(rows: string[][]): StoredAlumni[] {
   return alumniList;
 }
 
+function mergeAlumniWithExisting(sheetAlumni: StoredAlumni[], existingList: StoredAlumni[]): StoredAlumni[] {
+  const existingMap = new Map<string, StoredAlumni>();
+  for (const a of existingList) {
+    existingMap.set(a.correu.trim().toLowerCase(), a);
+  }
+
+  return sheetAlumni.map(sheetItem => {
+    const existing = existingMap.get(sheetItem.correu.trim().toLowerCase());
+    if (!existing) return sheetItem;
+
+    // Preservar canvis personals d'usuari (contrasenya, contacte, sectors) mentre es manté el 'verificat' del full
+    return {
+      ...sheetItem,
+      contrasenya: existing.localPassword || existing.contrasenya || sheetItem.contrasenya,
+      localPassword: existing.localPassword,
+      verificat: sheetItem.verificat, // Qui mana en l'estat és estrictament el full de càlcul
+      nomCognoms: existing.nomCognoms || sheetItem.nomCognoms,
+      sectorsInteres: existing.sectorsInteres?.length ? existing.sectorsInteres : sheetItem.sectorsInteres,
+      notificacionsCorreu: typeof existing.notificacionsCorreu === 'boolean' ? existing.notificacionsCorreu : sheetItem.notificacionsCorreu,
+    };
+  });
+}
+
 async function fetchGoogleSheetRows(spreadsheetUrlOrId: string, sheetName: string, authToken?: string): Promise<string[][]> {
   const cleanId = extractSpreadsheetId(spreadsheetUrlOrId);
   if (!cleanId) {
@@ -353,6 +377,17 @@ async function fetchGoogleSheetRows(spreadsheetUrlOrId: string, sheetName: strin
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  app.use((_req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    if (_req.method === 'OPTIONS') {
+      res.sendStatus(200);
+      return;
+    }
+    next();
+  });
 
   app.use(express.json({ limit: '10mb' }));
 
@@ -443,8 +478,9 @@ async function startServer() {
       const rows = await fetchGoogleSheetRows(current.spreadsheetUrlOrId, current.sheetName || 'Exalumnes', bearerToken);
       console.log('FETCHED ROWS COUNT:', rows ? rows.length : 'null');
       const alumni = parseAlumniFromRows(rows);
-      console.log('PARSED ALUMNI COUNT:', alumni ? alumni.length : 'null');
-      writeAlumni(alumni);
+      const currentList = readAlumni();
+      const merged = mergeAlumniWithExisting(alumni, currentList);
+      writeAlumni(merged);
 
       const now = `${new Date().toLocaleDateString('ca-ES')} ${new Date().toLocaleTimeString('ca-ES')}`;
       const newConfig: StoredSheetConfig = {
@@ -542,66 +578,90 @@ async function startServer() {
   });
 
   app.post('/api/update-alumni', (req, res) => {
-    const {
-      originalEmail,
-      nomCognoms,
-      correu,
-      contrasenya,
-      dni,
-      anyGraduacio,
-      especialitat,
-      sectorsInteres,
-      notificacionsCorreu,
-    } = req.body;
+    try {
+      const {
+        originalEmail,
+        nomCognoms,
+        correu,
+        contrasenya,
+        dni,
+        anyGraduacio,
+        especialitat,
+        sectorsInteres,
+        notificacionsCorreu,
+      } = req.body || {};
 
-    if (!originalEmail) {
-      res.status(400).json({ success: false, reason: "Falta el correu identificador de l'alumne." });
-      return;
-    }
+      if (!originalEmail) {
+        res.status(400).json({ success: false, reason: "Falta el correu identificador de l'alumne." });
+        return;
+      }
 
-    const cleanOrigEmail = String(originalEmail).trim().toLowerCase();
-    const cleanNewEmail = correu ? String(correu).trim().toLowerCase() : cleanOrigEmail;
+      const cleanOrigEmail = String(originalEmail).trim().toLowerCase();
+      const cleanNewEmail = correu ? String(correu).trim().toLowerCase() : cleanOrigEmail;
 
-    if (cleanNewEmail.endsWith('@itaeb.cat')) {
-      res.status(400).json({
-        success: false,
-        reason: "El correu de contacte no pot ser @itaeb.cat. Ha de ser un correu personal (Gmail, Outlook, etc.).",
+      if (cleanNewEmail.endsWith('@itaeb.cat')) {
+        res.status(400).json({
+          success: false,
+          reason: "El correu de contacte no pot ser @itaeb.cat. Ha de ser un correu personal (Gmail, Outlook, etc.).",
+        });
+        return;
+      }
+
+      const list = readAlumni();
+      const idx = list.findIndex(a => a.correu.trim().toLowerCase() === cleanOrigEmail);
+
+      let updatedRecord: StoredAlumni;
+      if (idx !== -1) {
+        const currentRecord = list[idx];
+        // Important: El camp verificat NO es pot modificar per l'usuari; es manté estrictament el que ja tenia
+        updatedRecord = {
+          ...currentRecord,
+          nomCognoms: nomCognoms ? String(nomCognoms).trim() : currentRecord.nomCognoms,
+          correu: cleanNewEmail,
+          contrasenya: contrasenya !== undefined ? String(contrasenya).trim() : currentRecord.contrasenya,
+          localPassword: contrasenya !== undefined ? String(contrasenya).trim() : currentRecord.localPassword,
+          dni: dni ? normalizeDNI(String(dni)) : currentRecord.dni,
+          anyGraduacio: anyGraduacio ? String(anyGraduacio).trim() : currentRecord.anyGraduacio,
+          especialitat: especialitat ? String(especialitat).trim() : currentRecord.especialitat,
+          sectorsInteres: Array.isArray(sectorsInteres) ? sectorsInteres : currentRecord.sectorsInteres,
+          notificacionsCorreu: typeof notificacionsCorreu === 'boolean' ? notificacionsCorreu : currentRecord.notificacionsCorreu,
+          verificat: currentRecord.verificat, // PRESERVAT INTACTE
+        };
+        list[idx] = updatedRecord;
+      } else {
+        // Si no es trobava al fitxer local, l'afegim com a nou registre conservant estat verificat
+        const newPass = contrasenya !== undefined ? String(contrasenya).trim() : '';
+        updatedRecord = {
+          id: `alu-${Date.now()}-${cleanNewEmail.replace(/[^a-zA-Z0-9]/g, '')}`,
+          marcaTemps: new Date().toLocaleDateString('ca-ES'),
+          nomCognoms: nomCognoms ? String(nomCognoms).trim() : cleanNewEmail.split('@')[0],
+          correu: cleanNewEmail,
+          contrasenya: newPass,
+          localPassword: newPass,
+          dni: dni ? normalizeDNI(String(dni)) : '',
+          anyGraduacio: anyGraduacio ? String(anyGraduacio).trim() : '2024',
+          especialitat: especialitat ? String(especialitat).trim() : "Tècniques de l'Espectacle",
+          sectorsInteres: Array.isArray(sectorsInteres) ? sectorsInteres : [],
+          notificacionsCorreu: typeof notificacionsCorreu === 'boolean' ? notificacionsCorreu : true,
+          verificat: true,
+        };
+        list.push(updatedRecord);
+      }
+
+      writeAlumni(list);
+
+      res.json({
+        success: true,
+        updatedRecord,
+        message: "Dades del teu perfil d'exalumne actualitzades correctament.",
       });
-      return;
+    } catch (err) {
+      console.error('Error updating alumni:', err);
+      res.status(500).json({
+        success: false,
+        reason: err instanceof Error ? err.message : "Error intern en desar les dades de l'alumne.",
+      });
     }
-
-    const list = readAlumni();
-    const idx = list.findIndex(a => a.correu.trim().toLowerCase() === cleanOrigEmail);
-
-    if (idx === -1) {
-      res.status(404).json({ success: false, reason: "No s'ha trobat l'alumne al registre." });
-      return;
-    }
-
-    const currentRecord = list[idx];
-
-    // Important: El camp verificat NO es pot modificar per l'usuari; es manté estrictament el que ja tenia
-    const updatedRecord: StoredAlumni = {
-      ...currentRecord,
-      nomCognoms: nomCognoms ? String(nomCognoms).trim() : currentRecord.nomCognoms,
-      correu: cleanNewEmail,
-      contrasenya: contrasenya ? String(contrasenya).trim() : currentRecord.contrasenya,
-      dni: dni ? normalizeDNI(String(dni)) : currentRecord.dni,
-      anyGraduacio: anyGraduacio ? String(anyGraduacio).trim() : currentRecord.anyGraduacio,
-      especialitat: especialitat ? String(especialitat).trim() : currentRecord.especialitat,
-      sectorsInteres: Array.isArray(sectorsInteres) ? sectorsInteres : currentRecord.sectorsInteres,
-      notificacionsCorreu: typeof notificacionsCorreu === 'boolean' ? notificacionsCorreu : currentRecord.notificacionsCorreu,
-      verificat: currentRecord.verificat, // PRESERVAT INTACTE
-    };
-
-    list[idx] = updatedRecord;
-    writeAlumni(list);
-
-    res.json({
-      success: true,
-      updatedRecord,
-      message: "Dades del teu perfil d'exalumne actualitzades correctament.",
-    });
   });
 
   app.post('/api/verify-alumni', async (req, res) => {
@@ -643,7 +703,7 @@ async function startServer() {
         if (liveRows && liveRows.length > 0) {
           const fresh = parseAlumniFromRows(liveRows);
           if (fresh.length > 0) {
-            alumniList = fresh;
+            alumniList = mergeAlumniWithExisting(fresh, alumniList);
             writeAlumni(alumniList);
 
             // Actualitzar estat de sincronització a l'èxit
@@ -683,8 +743,14 @@ async function startServer() {
       return;
     }
 
-    if (alumni.contrasenya && alumni.contrasenya.trim().length > 0) {
-      if (alumni.contrasenya.trim() !== cleanPass) {
+    const candidatePasswords = [
+      alumni.contrasenya,
+      alumni.localPassword,
+    ].filter((p): p is string => Boolean(p && p.trim().length > 0));
+
+    if (candidatePasswords.length > 0) {
+      const isMatch = candidatePasswords.some(p => p.trim() === cleanPass);
+      if (!isMatch) {
         res.status(401).json({
           success: false,
           reason: `La contrasenya introduïda no és correcta per al correu ${cleanEmail} a la fulla "${
@@ -748,7 +814,9 @@ async function startServer() {
       .then(rows => {
         const list = parseAlumniFromRows(rows);
         if (list.length > 0) {
-          writeAlumni(list);
+          const currentList = readAlumni();
+          const merged = mergeAlumniWithExisting(list, currentList);
+          writeAlumni(merged);
           const now = `${new Date().toLocaleDateString('ca-ES')} ${new Date().toLocaleTimeString('ca-ES')}`;
           writeConfig({
             ...cfg,

@@ -9,20 +9,11 @@
     "anyGraduacio": "2024",
     "especialitat": "Luminotècnia per a les Arts Escèniques",
     "sectorsInteres": [
-      "Il·luminació per arts escèniques",
-      "Sonorització per arts escèniques",
-      "Maquinària escènica",
-      "Producció d’audiovisuals i espectacles",
-      "Realització d’audiovisuals i espectacles",
-      "Postproducció",
-      "Motion Graphics",
-      "Muntatge d’esdeveniments",
-      "Vídeo Discjòquei",
-      "Interpretació",
-      "Creació de continguts"
+      "Il·luminació per arts escèniques"
     ],
     "notificacionsCorreu": true,
-    "verificat": true
+    "verificat": true,
+    "localPassword": "dl2656"
   },
   {
     "id": "alu-2-alexmartinribas05gmailcom",
@@ -718,9 +709,7 @@
     "anyGraduacio": "2025",
     "especialitat": "Producció d’Audiovisuals i Espectacles",
     "sectorsInteres": [
-      "Producció d’audiovisuals i espectacles",
-      "Realització d’audiovisuals i espectacles",
-      "Creació de continguts"
+      "Producció d’audiovisuals i espectacles"
     ],
     "notificacionsCorreu": true,
     "verificat": true
