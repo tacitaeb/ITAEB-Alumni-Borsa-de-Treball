@@ -315,7 +315,9 @@ export function parseAlumniRecordsFromRows(rows: string[][]): AlumniRecord[] {
     dataStartIndex = 1;
 
     firstRow.forEach((header, index) => {
-      if (header.includes('correu') || header.includes('email') || header.includes('mail')) {
+      if (header.includes('notificacio') || header.includes('avis') || header.includes('rebre') || header.includes('ofertes')) {
+        notifCol = index;
+      } else if (header.includes('correu') || header.includes('email') || header.includes('mail')) {
         emailCol = index;
       } else if (header.includes('contrasenya') || header.includes('password') || header.includes('clau') || header.includes('pass')) {
         passCol = index;
@@ -329,8 +331,6 @@ export function parseAlumniRecordsFromRows(rows: string[][]): AlumniRecord[] {
         specCol = index;
       } else if (header.includes('sector') || header.includes('interes') || header.includes('ambits')) {
         sectorsCol = index;
-      } else if (header.includes('notificacio') || header.includes('avis') || header.includes('rebre')) {
-        notifCol = index;
       } else if (header.includes('marca') || header.includes('temps') || header.includes('data')) {
         timestampCol = index;
       } else if (header.includes('verificat') || header.includes('estat') || header.includes('validat') || header.includes('aprovat') || header.includes('status')) {

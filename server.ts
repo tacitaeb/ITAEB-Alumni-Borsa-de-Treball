@@ -39,7 +39,7 @@ interface StoredAlumni {
 }
 
 const DEFAULT_CONFIG: StoredSheetConfig = {
-  spreadsheetUrlOrId: '',
+  spreadsheetUrlOrId: '1YsrfzmjYt7tgixvfkDfkWOgkRJEL1U9aIC50jpPcZtI',
   sheetName: 'Exalumnes',
   lastSyncTime: null,
   lastSyncStatus: 'not_configured',
@@ -103,34 +103,49 @@ export function extractSpreadsheetId(input: string): string {
   return trimmed;
 }
 
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = '';
+function parseCSV(csvText: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentCell = '';
   let inQuotes = false;
 
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
+  for (let i = 0; i < csvText.length; i++) {
+    const char = csvText[i];
+    const nextChar = csvText[i + 1];
+
     if (char === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"';
+      if (inQuotes && nextChar === '"') {
+        currentCell += '"';
         i++;
       } else {
         inQuotes = !inQuotes;
       }
     } else if ((char === ',' || char === '\t') && !inQuotes) {
-      result.push(current.trim());
-      current = '';
+      currentRow.push(currentCell.trim());
+      currentCell = '';
+    } else if ((char === '\r' || char === '\n') && !inQuotes) {
+      if (char === '\r' && nextChar === '\n') {
+        i++;
+      }
+      currentRow.push(currentCell.trim());
+      if (currentRow.some(c => c.length > 0)) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentCell = '';
     } else {
-      current += char;
+      currentCell += char;
     }
   }
-  result.push(current.trim());
-  return result;
-}
 
-function parseCSV(csvText: string): string[][] {
-  const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
-  return lines.map(parseCSVLine);
+  if (currentCell.length > 0 || currentRow.length > 0) {
+    currentRow.push(currentCell.trim());
+    if (currentRow.some(c => c.length > 0)) {
+      rows.push(currentRow);
+    }
+  }
+
+  return rows;
 }
 
 function normalizeText(text: string): string {
@@ -174,7 +189,9 @@ function parseAlumniFromRows(rows: string[][]): StoredAlumni[] {
   if (hasHeader) {
     startIndex = 1;
     firstRow.forEach((h, idx) => {
-      if (h.includes('correu') || h.includes('email') || h.includes('mail')) {
+      if (h.includes('notificacio') || h.includes('avis') || h.includes('rebre') || h.includes('ofertes')) {
+        notifCol = idx;
+      } else if (h.includes('correu') || h.includes('email') || h.includes('mail')) {
         emailCol = idx;
       } else if (h.includes('contrasenya') || h.includes('password') || h.includes('clau') || h.includes('pass')) {
         passCol = idx;
@@ -188,8 +205,6 @@ function parseAlumniFromRows(rows: string[][]): StoredAlumni[] {
         specCol = idx;
       } else if (h.includes('sector') || h.includes('interes') || h.includes('ambits')) {
         sectorsCol = idx;
-      } else if (h.includes('notificacio') || h.includes('avis') || h.includes('rebre')) {
-        notifCol = idx;
       } else if (h.includes('marca') || h.includes('temps') || h.includes('data')) {
         timestampCol = idx;
       } else if (h.includes('verificat') || h.includes('estat') || h.includes('validat') || h.includes('aprovat') || h.includes('status')) {
@@ -285,12 +300,14 @@ async function fetchGoogleSheetRows(spreadsheetUrlOrId: string, sheetName: strin
   // URL 2: Google Visualization API CSV export (per a fulls compartits per enllaç)
   const gvizUrl = `https://docs.google.com/spreadsheets/d/${cleanId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(
     sheetName
-  )}`;
+  )}&_t=${Date.now()}`;
 
   try {
     const res = await fetch(gvizUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ITAEB-Borsa/1.0',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
       },
     });
 
@@ -308,7 +325,7 @@ async function fetchGoogleSheetRows(spreadsheetUrlOrId: string, sheetName: strin
   // URL 3: Standard export CSV
   const exportUrl = `https://docs.google.com/spreadsheets/d/${cleanId}/export?format=csv&sheet=${encodeURIComponent(
     sheetName
-  )}`;
+  )}&_t=${Date.now()}`;
 
   try {
     const res = await fetch(exportUrl, {
@@ -422,8 +439,11 @@ async function startServer() {
     }
 
     try {
+      console.log('SYNC-SHEET called for id:', current.spreadsheetUrlOrId, 'sheet:', current.sheetName);
       const rows = await fetchGoogleSheetRows(current.spreadsheetUrlOrId, current.sheetName || 'Exalumnes', bearerToken);
+      console.log('FETCHED ROWS COUNT:', rows ? rows.length : 'null');
       const alumni = parseAlumniFromRows(rows);
+      console.log('PARSED ALUMNI COUNT:', alumni ? alumni.length : 'null');
       writeAlumni(alumni);
 
       const now = `${new Date().toLocaleDateString('ca-ES')} ${new Date().toLocaleTimeString('ca-ES')}`;
@@ -491,8 +511,33 @@ async function startServer() {
     }
   });
 
-  app.get('/api/alumni-list', (_req, res) => {
-    const alumni = readAlumni();
+  app.get('/api/alumni-list', async (req, res) => {
+    const config = readConfig();
+    let alumni = readAlumni();
+
+    if (config.spreadsheetUrlOrId && (req.query.refresh === 'true' || alumni.length === 0)) {
+      try {
+        const rows = await fetchGoogleSheetRows(config.spreadsheetUrlOrId, config.sheetName || 'Exalumnes');
+        if (rows && rows.length > 0) {
+          const fresh = parseAlumniFromRows(rows);
+          if (fresh.length > 0) {
+            alumni = fresh;
+            writeAlumni(alumni);
+            const now = `${new Date().toLocaleDateString('ca-ES')} ${new Date().toLocaleTimeString('ca-ES')}`;
+            writeConfig({
+              ...config,
+              lastSyncTime: now,
+              lastSyncStatus: 'success',
+              lastError: undefined,
+              totalAlumniInSheet: alumni.length,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Avís al consultar Google Sheets per a alumni-list:', err);
+      }
+    }
+
     res.json(alumni);
   });
 
@@ -587,24 +632,37 @@ async function startServer() {
       return;
     }
 
-    // 2. Read stored alumni from sheet
+    // 2. Read alumni with LIVE Google Sheets as authoritative source of truth
     const config = readConfig();
     let alumniList = readAlumni();
 
-    // If config has sheet URL and alumni list is empty, try an on-demand sync
-    if (alumniList.length === 0 && config.spreadsheetUrlOrId) {
+    // Si tenim el full de Google Sheets configurat, el consultem EN DIRECTE per tenir sempre les dades reals que el coordinador edita
+    if (config.spreadsheetUrlOrId) {
       try {
-        const rows = await fetchGoogleSheetRows(config.spreadsheetUrlOrId, config.sheetName || 'Exalumnes');
-        alumniList = parseAlumniFromRows(rows);
-        if (alumniList.length > 0) {
-          writeAlumni(alumniList);
+        const liveRows = await fetchGoogleSheetRows(config.spreadsheetUrlOrId, config.sheetName || 'Exalumnes');
+        if (liveRows && liveRows.length > 0) {
+          const fresh = parseAlumniFromRows(liveRows);
+          if (fresh.length > 0) {
+            alumniList = fresh;
+            writeAlumni(alumniList);
+
+            // Actualitzar estat de sincronització a l'èxit
+            const now = `${new Date().toLocaleDateString('ca-ES')} ${new Date().toLocaleTimeString('ca-ES')}`;
+            writeConfig({
+              ...config,
+              lastSyncTime: now,
+              lastSyncStatus: 'success',
+              lastError: undefined,
+              totalAlumniInSheet: alumniList.length,
+            });
+          }
         }
       } catch (err) {
-        console.warn('On-demand sync failed during verification:', err);
+        console.warn('Avís al consultar Google Sheets en viu, usant dades emmagatzemades:', err);
       }
     }
 
-    // Check if sheet was never linked
+    // Check if sheet was never linked and no alumni stored
     if (!config.spreadsheetUrlOrId && alumniList.length === 0) {
       res.status(400).json({
         success: false,
@@ -684,6 +742,28 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running at http://0.0.0.0:${PORT}`);
+    const cfg = readConfig();
+    const sheetId = cfg.spreadsheetUrlOrId || '1YsrfzmjYt7tgixvfkDfkWOgkRJEL1U9aIC50jpPcZtI';
+    fetchGoogleSheetRows(sheetId, cfg.sheetName || 'Exalumnes')
+      .then(rows => {
+        const list = parseAlumniFromRows(rows);
+        if (list.length > 0) {
+          writeAlumni(list);
+          const now = `${new Date().toLocaleDateString('ca-ES')} ${new Date().toLocaleTimeString('ca-ES')}`;
+          writeConfig({
+            ...cfg,
+            spreadsheetUrlOrId: sheetId,
+            lastSyncTime: now,
+            lastSyncStatus: 'success',
+            lastError: undefined,
+            totalAlumniInSheet: list.length,
+          });
+          console.log(`[Google Sheets] Sincronitzats correctament ${list.length} exalumnes des de la fulla "${cfg.sheetName || 'Exalumnes'}".`);
+        }
+      })
+      .catch(err => {
+        console.warn('[Google Sheets] Avís en sincronització inicial:', err.message);
+      });
   });
 }
 

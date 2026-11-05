@@ -1,13 +1,521 @@
 [
   {
-    "id": "alu-001",
-    "marcaTemps": "15/07/2026 10:14:22",
-    "nomCognoms": "Marc Martínez Soler (Actualitzat)",
-    "dni": "47812903K",
-    "correu": "marc.martinez@gmail.com",
-    "contrasenya": "itaeb2024",
+    "id": "alu-1-llamaspubligmailcom",
+    "marcaTemps": "25/06/2026 13:38:50",
+    "nomCognoms": "David15 Llamas Pleguezuelos",
+    "dni": "38828300E",
+    "correu": "llamaspubli@gmail.com",
+    "contrasenya": "dl2656",
     "anyGraduacio": "2024",
-    "especialitat": "Il·luminació, captació i tractament d'imatge",
+    "especialitat": "Luminotècnia per a les Arts Escèniques",
+    "sectorsInteres": [
+      "Il·luminació per arts escèniques",
+      "Sonorització per arts escèniques",
+      "Maquinària escènica",
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
+      "Postproducció",
+      "Motion Graphics",
+      "Muntatge d’esdeveniments",
+      "Vídeo Discjòquei",
+      "Interpretació",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-2-alexmartinribas05gmailcom",
+    "marcaTemps": "30/06/2026 14:30:58",
+    "nomCognoms": "Alex Martin Ribas",
+    "dni": "21754384H",
+    "correu": "alexmartinribas05@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
+      "Muntatge d’esdeveniments",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-3-jenerhergmailcom",
+    "marcaTemps": "30/06/2026 14:31:04",
+    "nomCognoms": "Jener Zavaleta Zavaleta",
+    "dni": "49636605Y",
+    "correu": "jener.her@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Realització de Projectes d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Realització d’audiovisuals i espectacles",
+      "Postproducció",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-4-onasallerasgmailcom",
+    "marcaTemps": "30/06/2026 14:32:07",
+    "nomCognoms": "Ona Salleras Aguadé",
+    "dni": "11180209R",
+    "correu": "ona.salleras@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Batxillerat d’Arts Escèniques",
+    "sectorsInteres": [
+      "Interpretació"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-5-martinamanago1315gmailcom",
+    "marcaTemps": "30/06/2026 14:32:11",
+    "nomCognoms": "Martina Managó García",
+    "dni": "21758567S",
+    "correu": "martinamanago1315@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Batxillerat d’Arts Escèniques",
+    "sectorsInteres": [
+      "Realització d’audiovisuals i espectacles",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-6-dverdupintorgmailcom",
+    "marcaTemps": "30/06/2026 14:32:14",
+    "nomCognoms": "Duna Verdú Pintor",
+    "dni": "41015057P",
+    "correu": "dverdupintor@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Tècniques d’Actuació Teatral",
+    "sectorsInteres": [
+      "Interpretació",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-7-lucigoitegmailcom",
+    "marcaTemps": "30/06/2026 14:38:16",
+    "nomCognoms": "Lucía Hernández Serrano",
+    "dni": "46282008M",
+    "correu": "lucigoite@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Tècniques d’Actuació Teatral",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Interpretació",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-8-gsospedra08gmailcom",
+    "marcaTemps": "30/06/2026 14:38:51",
+    "nomCognoms": "Guillem Sospedra Mulà",
+    "dni": "21769936E",
+    "correu": "gsospedra08@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Batxillerat Tecnològic Audiovisual",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Muntatge d’esdeveniments",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-9-irenedelgadoactrizgmailcom",
+    "marcaTemps": "30/06/2026 14:39:29",
+    "nomCognoms": "Irene Delgado Giménez",
+    "dni": "47575805Y",
+    "correu": "irenedelgadoactriz@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Tècniques d’Actuació Teatral",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Interpretació"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-10-ainagonzzgmailcom",
+    "marcaTemps": "30/06/2026 14:41:40",
+    "nomCognoms": "Aina González Ibáñez",
+    "dni": "24414157W",
+    "correu": "ainagonzz@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-11-bielmarchmgmailcom",
+    "marcaTemps": "30/06/2026 14:42:52",
+    "nomCognoms": "Biel March Mestres",
+    "dni": "11180140R",
+    "correu": "bielmarchm@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Batxillerat Tecnològic Audiovisual",
+    "sectorsInteres": [
+      "Il·luminació per arts escèniques",
+      "Producció d’audiovisuals i espectacles",
+      "Muntatge d’esdeveniments"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-12-Arandaboschirenegmailcom",
+    "marcaTemps": "30/06/2026 14:43:42",
+    "nomCognoms": "Irene Maria Aranda Bosch",
+    "dni": "53971683K",
+    "correu": "Arandaboschirene@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Realització de Projectes d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Maquinària escènica",
+      "Realització d’audiovisuals i espectacles",
+      "Postproducció",
+      "Muntatge d’esdeveniments",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-13-casanovasjosuegmailcom",
+    "marcaTemps": "30/06/2026 14:47:02",
+    "nomCognoms": "Josué Casanovas Garcia",
+    "dni": "54246828V",
+    "correu": "casanovasjosue@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Tècniques d’Actuació Teatral",
+    "sectorsInteres": [
+      "Interpretació"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-14-arnaubarnesjgmailcom",
+    "marcaTemps": "30/06/2026 14:50:12",
+    "nomCognoms": "Arnau Barnés",
+    "dni": "48071968J",
+    "correu": "arnaubarnesj@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Realització de Projectes d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
+      "Postproducció",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-15-ikermoralesjuarezgmailcom",
+    "marcaTemps": "30/06/2026 14:54:10",
+    "nomCognoms": "Iker Morales i Juarez",
+    "dni": "49323260J",
+    "correu": "ikermoralesjuarez@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Realització de Projectes d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-16-abaldrichgonzalezgmailcom",
+    "marcaTemps": "30/06/2026 14:54:11",
+    "nomCognoms": "Amàlia Baldrich Gonzalez",
+    "dni": "47595165T",
+    "correu": "abaldrichgonzalez@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Realització de Projectes d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Il·luminació per arts escèniques",
+      "Sonorització per arts escèniques",
+      "Maquinària escènica",
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
+      "Postproducció",
+      "Motion Graphics",
+      "Muntatge d’esdeveniments",
+      "Vídeo Discjòquei",
+      "Interpretació",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-17-oriolcastrillogmailcom",
+    "marcaTemps": "30/06/2026 14:57:46",
+    "nomCognoms": "Oriol Castrillo Bericat",
+    "dni": "48171150L",
+    "correu": "oriolcastrillo@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Sonorització per arts escèniques",
+      "Producció d’audiovisuals i espectacles",
+      "Muntatge d’esdeveniments",
+      "Vídeo Discjòquei"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-18-ginagarretaagmailcom",
+    "marcaTemps": "30/06/2026 14:59:33",
+    "nomCognoms": "Gina Garreta Andreu",
+    "dni": "24430544J",
+    "correu": "ginagarretaa@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Batxillerat d’Arts Escèniques",
+    "sectorsInteres": [
+      "Muntatge d’esdeveniments",
+      "Interpretació",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-19-juanmolina142004gmailcom",
+    "marcaTemps": "30/06/2026 14:59:33",
+    "nomCognoms": "Juan Daniel Molina García",
+    "dni": "Z1853631C",
+    "correu": "juanmolina142004@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Realització de Projectes d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
+      "Postproducció"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-20-martinramirezrolonngmailcom",
+    "marcaTemps": "30/06/2026 16:36:14",
+    "nomCognoms": "Martín Ramírez",
+    "dni": "55360792E",
+    "correu": "martinramirezrolonn@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Realització de Projectes d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Il·luminació per arts escèniques",
+      "Sonorització per arts escèniques",
+      "Realització d’audiovisuals i espectacles",
+      "Postproducció",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-21-valsanjuliagmailcom",
+    "marcaTemps": "30/06/2026 17:11:15",
+    "nomCognoms": "Júlia Valero Sanchez",
+    "dni": "46480097H",
+    "correu": "valsanjulia@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Realització de Projectes d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Realització d’audiovisuals i espectacles",
+      "Postproducció",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-22-guipriecubgmailcom",
+    "marcaTemps": "30/06/2026 17:41:51",
+    "nomCognoms": "Guillermo Prieto Cubero",
+    "dni": "39544448L",
+    "correu": "guipriecub@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Tècniques d’Actuació Teatral",
+    "sectorsInteres": [
+      "Interpretació"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-23-angelaflorensa150904gmailcom",
+    "marcaTemps": "30/06/2026 17:57:33",
+    "nomCognoms": "Àngela Florensa Duque",
+    "dni": "54769550H",
+    "correu": "angelaflorensa150904@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
+      "Muntatge d’esdeveniments",
+      "Interpretació",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-24-martapujadassolegmailcom",
+    "marcaTemps": "30/06/2026 18:19:36",
+    "nomCognoms": "Marta Pujadas Solé",
+    "dni": "43589924W",
+    "correu": "martapujadassole@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Tècniques d’Actuació Teatral",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Muntatge d’esdeveniments",
+      "Interpretació",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-25-fenoma64gmailcom",
+    "marcaTemps": "30/06/2026 20:05:51",
+    "nomCognoms": "Favour Etinosa Enoma Osayi Emuze",
+    "dni": "39522977F",
+    "correu": "fenoma64@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Batxillerat d’Arts Escèniques",
+    "sectorsInteres": [
+      "Sonorització per arts escèniques",
+      "Interpretació",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-26-ainoaamicloudcom",
+    "marcaTemps": "30/06/2026 23:44:00",
+    "nomCognoms": "Ainoa Andrés Manubens",
+    "dni": "26311953E",
+    "correu": "ainoa_a_m@icloud.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Realització de Projectes d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Realització d’audiovisuals i espectacles",
+      "Postproducció",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-27-rosichjofregmailcom",
+    "marcaTemps": "01/07/2026 2:38:36",
+    "nomCognoms": "Jofre rosich nogue",
+    "dni": "20554963R",
+    "correu": "rosichjofre@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
+      "Muntatge d’esdeveniments",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-28-tizianarosmartingmailcom",
+    "marcaTemps": "01/07/2026 12:28:21",
+    "nomCognoms": "Tiziana Ros Martin",
+    "dni": "53869856S",
+    "correu": "tiziana.rosmartin@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Batxillerat d’Arts Escèniques",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Muntatge d’esdeveniments",
+      "Interpretació"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-29-gfinuccimoragmailcom",
+    "marcaTemps": "01/07/2026 12:28:39",
+    "nomCognoms": "Mora Gogenola Finucci",
+    "dni": "Z0835236L",
+    "correu": "g.finuccimora@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-30-iritasanchezgmailcom",
+    "marcaTemps": "01/07/2026 15:13:44",
+    "nomCognoms": "Ivan Rita Sánchez",
+    "dni": "48008538V",
+    "correu": "i.ritasanchez@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Luminotècnia per a les Arts Escèniques",
     "sectorsInteres": [
       "Il·luminació per arts escèniques"
     ],
@@ -15,66 +523,323 @@
     "verificat": true
   },
   {
-    "id": "alu-002",
-    "marcaTemps": "20/07/2026 12:30:15",
-    "nomCognoms": "Laura Vila Garcia",
-    "dni": "39482104P",
-    "correu": "laura.vila@gmail.com",
-    "contrasenya": "itaeb2023",
-    "anyGraduacio": "2023",
-    "especialitat": "Sonorització per a arts escèniques i espectacles",
-    "sectorsInteres": [
-      "Sonorització per arts escèniques"
-    ],
-    "notificacionsCorreu": true,
-    "verificat": true
-  },
-  {
-    "id": "alu-003",
-    "marcaTemps": "01/09/2026 09:45:00",
-    "nomCognoms": "Pol Puig Roig",
-    "dni": "48102934X",
-    "correu": "pol.puig@gmail.com",
-    "contrasenya": "itaeb2025",
-    "anyGraduacio": "2025",
-    "especialitat": "Realització de projectes d'audiovisuals i espectacles",
-    "sectorsInteres": [
-      "Realització d’audiovisuals i espectacles",
-      "Creació de continguts",
-      "Postproducció"
-    ],
-    "notificacionsCorreu": true,
-    "verificat": true
-  },
-  {
-    "id": "alu-004",
-    "marcaTemps": "12/09/2026 18:05:12",
-    "nomCognoms": "Clara Navarro Pons",
-    "dni": "53891023Z",
-    "correu": "clara.navarro@hotmail.com",
-    "contrasenya": "itaeb2024",
-    "anyGraduacio": "2024",
-    "especialitat": "Maquinària escènica i tecnologia de l'espectacle",
+    "id": "alu-31-albertojimenezamgmailcom",
+    "marcaTemps": "01/07/2026 18:57:00",
+    "nomCognoms": "Alberto Jiménez Amayuelas",
+    "dni": "43558777C",
+    "correu": "albertojimenezam@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Maquinària Escènica",
     "sectorsInteres": [
       "Maquinària escènica",
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
+      "Muntatge d’esdeveniments",
+      "Interpretació"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-32-silviaramospegmailcom",
+    "marcaTemps": "02/07/2026 9:16:26",
+    "nomCognoms": "Silvia Ramos Pérez",
+    "dni": "48215864K",
+    "correu": "silviaramospe@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-33-judiitnavagmailcom",
+    "marcaTemps": "02/07/2026 10:13:03",
+    "nomCognoms": "Judit Nava González",
+    "dni": "49376816W",
+    "correu": "judiitnava@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Tècniques d’Actuació Teatral",
+    "sectorsInteres": [
+      "Interpretació"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-34-menaperezceliagmailcom",
+    "marcaTemps": "02/07/2026 13:06:04",
+    "nomCognoms": "Celia Pérez Mena",
+    "dni": "43576517G",
+    "correu": "mena.perez.celia@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-35-elisabetnaspledagmailcom",
+    "marcaTemps": "02/07/2026 14:23:54",
+    "nomCognoms": "Elisabet Naspleda Pujol",
+    "dni": "49187355S",
+    "correu": "elisabet.naspleda@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Realització de Projectes d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Realització d’audiovisuals i espectacles",
+      "Postproducció",
+      "Muntatge d’esdeveniments",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-36-emmaroviranietogmailcom",
+    "marcaTemps": "02/07/2026 15:53:52",
+    "nomCognoms": "Emma Rovira Nieto",
+    "dni": "21750966G",
+    "correu": "emmaroviranieto@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2024",
+    "especialitat": "Tècniques d’Actuació Teatral",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Interpretació"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-37-miriamcs265gmailcom",
+    "marcaTemps": "02/07/2026 18:44:11",
+    "nomCognoms": "Míriam Calderón Santiago",
+    "dni": "49765665J",
+    "correu": "miriamcs265@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
+      "Postproducció",
+      "Muntatge d’esdeveniments",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-38-Ctorrado137gmailcom",
+    "marcaTemps": "03/07/2026 0:21:22",
+    "nomCognoms": "Conchi Torrado Aguilera",
+    "dni": "47333277J",
+    "correu": "Ctorrado137@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
       "Muntatge d’esdeveniments"
     ],
     "notificacionsCorreu": true,
     "verificat": true
   },
   {
-    "id": "alu-005",
-    "marcaTemps": "24/10/2026 10:30:00",
-    "nomCognoms": "Alumni Llamas",
-    "dni": "46890123L",
-    "correu": "llamaspubli@gmail.com",
-    "contrasenya": "itaeb2024",
-    "anyGraduacio": "2024",
-    "especialitat": "Realització de projectes d'audiovisuals i espectacles",
+    "id": "alu-39-albaigregmailcom",
+    "marcaTemps": "03/07/2026 13:24:10",
+    "nomCognoms": "Alba Iglesias Reguera",
+    "dni": "48104064R",
+    "correu": "albaigre@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
+      "Postproducció"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-40-Lescobarrochagmailcom",
+    "marcaTemps": "04/07/2026 21:09:50",
+    "nomCognoms": "Lenzo Escobar Rocha",
+    "dni": "58491458C",
+    "correu": "Lescobarrocha@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Il·luminació per arts escèniques",
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-41-nicofdez2005gmailcom",
+    "marcaTemps": "07/07/2026 11:29:37",
+    "nomCognoms": "Nicolás Fernández Caballero",
+    "dni": "24416100J",
+    "correu": "nicofdez2005@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Realització de Projectes d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
+      "Muntatge d’esdeveniments",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-42-nuriamteygmailcom",
+    "marcaTemps": "14/07/2026 13:31:57",
+    "nomCognoms": "Núria Martinez Tey",
+    "dni": "47594906V",
+    "correu": "nuria.mtey@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-43-irenecaba18gmailcom",
+    "marcaTemps": "04/08/2026 16:44:49",
+    "nomCognoms": "irene castañer barreira",
+    "dni": "26064643P",
+    "correu": "irenecaba18@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-44-paulamuhogmailcom",
+    "marcaTemps": "05/08/2026 18:37:41",
+    "nomCognoms": "Paula Murio Hortelano",
+    "dni": "39948737Z",
+    "correu": "paulamuho@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Realització de Projectes d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Realització d’audiovisuals i espectacles",
+      "Postproducció",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-45-lauralopezmaggmailcom",
+    "marcaTemps": "05/08/2026 18:37:57",
+    "nomCognoms": "Laura Lopez",
+    "dni": "20557681M",
+    "correu": "lauralopezmag@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Realització de Projectes d’Audiovisuals i Espectacles",
     "sectorsInteres": [
       "Producció d’audiovisuals i espectacles",
       "Realització d’audiovisuals i espectacles",
       "Postproducció",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-46-carlatorre004gmailcom",
+    "marcaTemps": "11/08/2026 4:09:37",
+    "nomCognoms": "Carla Torre Reverte",
+    "dni": "39970907N",
+    "correu": "carlatorre004@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Realització de Projectes d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-47-aleixcarrilloalbalatgmailcom",
+    "marcaTemps": "27/08/2026 17:09:28",
+    "nomCognoms": "Aleix Carrillo Albalat",
+    "dni": "51806380F",
+    "correu": "aleix.carrillo.albalat@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2026",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Realització d’audiovisuals i espectacles",
+      "Postproducció",
+      "Motion Graphics",
+      "Muntatge d’esdeveniments",
+      "Creació de continguts"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-48-nuriamteygmailcom",
+    "marcaTemps": "04/10/2026 23:02:53",
+    "nomCognoms": "Núria Martinez Tey",
+    "dni": "47594906V",
+    "correu": "nuria.mtey@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles"
+    ],
+    "notificacionsCorreu": true,
+    "verificat": true
+  },
+  {
+    "id": "alu-49-arnaubofarullgmailcom",
+    "marcaTemps": "15/10/2026 18:31:00",
+    "nomCognoms": "Arnau Bofarull Santacana",
+    "dni": "78099848J",
+    "correu": "arnaubofarull@gmail.com",
+    "contrasenya": "",
+    "anyGraduacio": "2025",
+    "especialitat": "Producció d’Audiovisuals i Espectacles",
+    "sectorsInteres": [
+      "Producció d’audiovisuals i espectacles",
+      "Muntatge d’esdeveniments",
       "Creació de continguts"
     ],
     "notificacionsCorreu": true,
