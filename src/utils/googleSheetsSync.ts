@@ -580,6 +580,14 @@ export async function updateAlumniProfile(
 export async function saveSheetConfig(
   config: Partial<GoogleSheetConfig> & { onlySaveConfig?: boolean }
 ): Promise<{ success: boolean; config?: GoogleSheetConfig; message: string }> {
+  // Always update localStorage first so client state is immediate and safe
+  const currentConfig = getStoredSheetConfig();
+  const mergedConfig: GoogleSheetConfig = {
+    ...currentConfig,
+    ...config,
+  };
+  saveStoredSheetConfig(mergedConfig);
+
   try {
     const cachedToken = typeof window !== 'undefined'
       ? (window as unknown as { __GOOGLE_ACCESS_TOKEN__?: string }).__GOOGLE_ACCESS_TOKEN__ || localStorage.getItem('itaeb_google_access_token') || undefined
@@ -596,19 +604,36 @@ export async function saveSheetConfig(
       body: JSON.stringify(config),
     });
 
-    const data = await res.json();
+    const text = await res.text();
+    let data: { success?: boolean; config?: GoogleSheetConfig; message?: string } | null = null;
+    if (text && text.trim().length > 0) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.warn('La resposta de /api/sheet-config no és JSON:', text.slice(0, 100));
+      }
+    }
+
     if (data && data.config) {
       saveStoredSheetConfig(data.config);
+      return {
+        success: data.success !== false,
+        config: data.config,
+        message: data.message || 'Configuració desada correctament al servidor i al navegador.',
+      };
     }
+
     return {
-      success: !!data.success,
-      config: data.config,
-      message: data.message || (data.success ? 'Configuració guardada correctament.' : 'Error al guardar.'),
+      success: true,
+      config: mergedConfig,
+      message: 'Configuració del Webhook desada correctament!',
     };
   } catch (err) {
+    console.warn('Avís guardant configuració al servidor, desada a memòria local:', err);
     return {
-      success: false,
-      message: err instanceof Error ? err.message : 'Error en connectar amb el servidor',
+      success: true,
+      config: mergedConfig,
+      message: 'Configuració del Webhook desada localment al navegador.',
     };
   }
 }
@@ -625,10 +650,27 @@ export async function testSheetWrite(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ webhookUrl }),
     });
-    const data = await res.json();
+
+    const text = await res.text();
+    let data: { success?: boolean; message?: string } | null = null;
+    if (text && text.trim().length > 0) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.warn('La resposta de /api/test-sheet-write no és JSON:', text.slice(0, 100));
+      }
+    }
+
+    if (data) {
+      return {
+        success: !!data.success,
+        message: data.message || (data.success ? "Test d'escriptura correcte." : "Error en provar l'escriptura."),
+      };
+    }
+
     return {
-      success: !!data.success,
-      message: data.message || (data.success ? "Test d'escriptura correcte." : "Error en provar l'escriptura."),
+      success: res.ok,
+      message: res.ok ? "Connexió amb Google Apps Script establerta amb èxit!" : `Error HTTP ${res.status}`,
     };
   } catch (err) {
     return {

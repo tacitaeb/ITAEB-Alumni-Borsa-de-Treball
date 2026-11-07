@@ -1,7 +1,8 @@
 {
   "spreadsheetUrlOrId": "1YsrfzmjYt7tgixvfkDfkWOgkRJEL1U9aIC50jpPcZtI",
   "sheetName": "Exalumnes",
-  "lastSyncTime": "5/11/2026 12:54:01",
+  "lastSyncTime": "7/11/2026 13:02:22",
   "lastSyncStatus": "success",
-  "totalAlumniInSheet": 49
+  "totalAlumniInSheet": 49,
+  "appsScriptWebhookUrl": "https://script.google.com/macros/s/test/exec"
 }

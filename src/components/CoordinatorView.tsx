@@ -480,25 +480,19 @@ export const CoordinatorView: React.FC<CoordinatorViewProps> = ({
   const [copiedScript, setCopiedScript] = useState(false);
 
   const handleSaveWebhook = async () => {
+    const cleanUrl = webhookUrlInput.trim().replace(/^["']|["']$/g, '');
     setIsSavingWebhook(true);
     setWebhookFeedback(null);
     try {
       const res = await saveSheetConfig({
-        appsScriptWebhookUrl: webhookUrlInput.trim(),
+        appsScriptWebhookUrl: cleanUrl,
         onlySaveConfig: true,
       });
-      if (res.success) {
-        setSheetConfig(prev => ({ ...prev, appsScriptWebhookUrl: webhookUrlInput.trim() }));
-        setWebhookFeedback({
-          success: true,
-          message: "URL del Webhook de Google Apps Script desada correctament al servidor!",
-        });
-      } else {
-        setWebhookFeedback({
-          success: false,
-          message: res.message || 'Error en desar el Webhook.',
-        });
-      }
+      setSheetConfig(prev => ({ ...prev, appsScriptWebhookUrl: cleanUrl }));
+      setWebhookFeedback({
+        success: res.success,
+        message: res.message || "URL del Webhook de Google Apps Script desada correctament!",
+      });
     } catch (err) {
       setWebhookFeedback({
         success: false,
@@ -510,8 +504,9 @@ export const CoordinatorView: React.FC<CoordinatorViewProps> = ({
   };
 
   const handleTestWebhook = async () => {
-    const url = webhookUrlInput.trim() || sheetConfig.appsScriptWebhookUrl;
-    if (!url) {
+    const rawUrl = webhookUrlInput.trim() || sheetConfig.appsScriptWebhookUrl || '';
+    const cleanUrl = rawUrl.trim().replace(/^["']|["']$/g, '');
+    if (!cleanUrl) {
       setWebhookFeedback({
         success: false,
         message: "Enganxa primer l'URL del Webhook de Google Apps Script (que acaba en /exec).",
@@ -521,17 +516,17 @@ export const CoordinatorView: React.FC<CoordinatorViewProps> = ({
     setIsTestingWebhook(true);
     setWebhookFeedback(null);
     try {
-      const res = await testSheetWrite(url);
+      const res = await testSheetWrite(cleanUrl);
       setWebhookFeedback({
         success: res.success,
         message: res.message,
       });
-      if (res.success && url !== sheetConfig.appsScriptWebhookUrl) {
+      if (res.success) {
         await saveSheetConfig({
-          appsScriptWebhookUrl: url,
+          appsScriptWebhookUrl: cleanUrl,
           onlySaveConfig: true,
         });
-        setSheetConfig(prev => ({ ...prev, appsScriptWebhookUrl: url }));
+        setSheetConfig(prev => ({ ...prev, appsScriptWebhookUrl: cleanUrl }));
       }
     } catch (err) {
       setWebhookFeedback({

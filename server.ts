@@ -551,87 +551,93 @@ async function startServer() {
   });
 
   app.post('/api/sheet-config', async (req, res) => {
-    const { spreadsheetUrlOrId, sheetName, coordinatorToken, appsScriptWebhookUrl } = req.body || {};
-    const authHeader = req.headers.authorization;
-    const bearerToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
-    const current = readConfig();
-
-    const targetUrlOrId = (spreadsheetUrlOrId !== undefined ? spreadsheetUrlOrId : current.spreadsheetUrlOrId).trim();
-    const targetSheet = (sheetName !== undefined ? sheetName : current.sheetName || 'Exalumnes').trim();
-    const updatedCoordinatorToken = coordinatorToken !== undefined ? coordinatorToken : (bearerToken || current.coordinatorToken);
-    const updatedWebhookUrl = appsScriptWebhookUrl !== undefined ? appsScriptWebhookUrl.trim() : current.appsScriptWebhookUrl;
-
-    if (req.body?.onlySaveConfig) {
-      const updated: StoredSheetConfig = {
-        ...current,
-        spreadsheetUrlOrId: targetUrlOrId || current.spreadsheetUrlOrId,
-        sheetName: targetSheet || current.sheetName || 'Exalumnes',
-        appsScriptWebhookUrl: updatedWebhookUrl !== undefined ? updatedWebhookUrl : current.appsScriptWebhookUrl,
-        coordinatorToken: updatedCoordinatorToken !== undefined ? updatedCoordinatorToken : current.coordinatorToken,
-      };
-      writeConfig(updated);
-      res.json({ success: true, config: updated, message: 'Configuració del full i webhook desada correctament.' });
-      return;
-    }
-
-    if (!targetUrlOrId) {
-      const updated: StoredSheetConfig = {
-        ...current,
-        spreadsheetUrlOrId: '',
-        sheetName: targetSheet,
-        coordinatorToken: updatedCoordinatorToken,
-        appsScriptWebhookUrl: updatedWebhookUrl,
-        lastSyncStatus: 'not_configured',
-        lastError: 'Falta l’enllaç o identificador del Google Spreadsheet.',
-      };
-      writeConfig(updated);
-      res.json({ success: false, config: updated, message: updated.lastError });
-      return;
-    }
-
     try {
-      const activeToken = updatedCoordinatorToken || bearerToken;
-      const rows = await fetchGoogleSheetRows(targetUrlOrId, targetSheet, activeToken);
-      const alumni = parseAlumniFromRows(rows);
-      const currentList = readAlumni();
-      const merged = mergeAlumniWithExisting(alumni, currentList);
-      writeAlumni(merged);
+      const { spreadsheetUrlOrId, sheetName, coordinatorToken, appsScriptWebhookUrl } = req.body || {};
+      const authHeader = req.headers.authorization;
+      const bearerToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+      const current = readConfig();
 
-      const now = `${new Date().toLocaleDateString('ca-ES')} ${new Date().toLocaleTimeString('ca-ES')}`;
-      const newConfig: StoredSheetConfig = {
-        spreadsheetUrlOrId: targetUrlOrId,
-        sheetName: targetSheet,
-        coordinatorToken: updatedCoordinatorToken,
-        appsScriptWebhookUrl: updatedWebhookUrl,
-        lastSyncTime: now,
-        lastSyncStatus: 'success',
-        lastError: undefined,
-        totalAlumniInSheet: merged.length,
-      };
-      writeConfig(newConfig);
+      const targetUrlOrId = String(spreadsheetUrlOrId !== undefined ? spreadsheetUrlOrId : (current.spreadsheetUrlOrId || '')).trim();
+      const targetSheet = String(sheetName !== undefined ? sheetName : (current.sheetName || 'Exalumnes')).trim();
+      const updatedCoordinatorToken = coordinatorToken !== undefined ? coordinatorToken : (bearerToken || current.coordinatorToken);
+      const updatedWebhookUrl = appsScriptWebhookUrl !== undefined ? String(appsScriptWebhookUrl).trim() : current.appsScriptWebhookUrl;
 
-      res.json({
-        success: true,
-        config: newConfig,
-        total: merged.length,
-        message: `S'han sincronitzat correctament ${merged.length} exalumnes des de la fulla "${targetSheet}".`,
-      });
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      const failedConfig: StoredSheetConfig = {
-        spreadsheetUrlOrId: targetUrlOrId,
-        sheetName: targetSheet,
-        lastSyncTime: current.lastSyncTime,
-        lastSyncStatus: 'error',
-        lastError: errorMsg,
-        totalAlumniInSheet: current.totalAlumniInSheet,
-      };
-      writeConfig(failedConfig);
+      if (req.body?.onlySaveConfig) {
+        const updated: StoredSheetConfig = {
+          ...current,
+          spreadsheetUrlOrId: targetUrlOrId || current.spreadsheetUrlOrId || '1YsrfzmjYt7tgixvfkDfkWOgkRJEL1U9aIC50jpPcZtI',
+          sheetName: targetSheet || current.sheetName || 'Exalumnes',
+          appsScriptWebhookUrl: updatedWebhookUrl !== undefined ? updatedWebhookUrl : current.appsScriptWebhookUrl,
+          coordinatorToken: updatedCoordinatorToken !== undefined ? updatedCoordinatorToken : current.coordinatorToken,
+        };
+        writeConfig(updated);
+        return res.json({ success: true, config: updated, message: 'Configuració del full i webhook desada correctament.' });
+      }
 
-      res.status(400).json({
+      if (!targetUrlOrId) {
+        const updated: StoredSheetConfig = {
+          ...current,
+          spreadsheetUrlOrId: '',
+          sheetName: targetSheet,
+          coordinatorToken: updatedCoordinatorToken,
+          appsScriptWebhookUrl: updatedWebhookUrl,
+          lastSyncStatus: 'not_configured',
+          lastError: 'Falta l’enllaç o identificador del Google Spreadsheet.',
+        };
+        writeConfig(updated);
+        return res.json({ success: false, config: updated, message: updated.lastError });
+      }
+
+      try {
+        const activeToken = updatedCoordinatorToken || bearerToken;
+        const rows = await fetchGoogleSheetRows(targetUrlOrId, targetSheet, activeToken);
+        const alumni = parseAlumniFromRows(rows);
+        const currentList = readAlumni();
+        const merged = mergeAlumniWithExisting(alumni, currentList);
+        writeAlumni(merged);
+
+        const now = `${new Date().toLocaleDateString('ca-ES')} ${new Date().toLocaleTimeString('ca-ES')}`;
+        const newConfig: StoredSheetConfig = {
+          spreadsheetUrlOrId: targetUrlOrId,
+          sheetName: targetSheet,
+          coordinatorToken: updatedCoordinatorToken,
+          appsScriptWebhookUrl: updatedWebhookUrl,
+          lastSyncTime: now,
+          lastSyncStatus: 'success',
+          lastError: undefined,
+          totalAlumniInSheet: merged.length,
+        };
+        writeConfig(newConfig);
+
+        return res.json({
+          success: true,
+          config: newConfig,
+          total: merged.length,
+          message: `S'han sincronitzat correctament ${merged.length} exalumnes des de la fulla "${targetSheet}".`,
+        });
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        const failedConfig: StoredSheetConfig = {
+          spreadsheetUrlOrId: targetUrlOrId,
+          sheetName: targetSheet,
+          lastSyncTime: current.lastSyncTime,
+          lastSyncStatus: 'error',
+          lastError: errorMsg,
+          totalAlumniInSheet: current.totalAlumniInSheet,
+        };
+        writeConfig(failedConfig);
+
+        return res.status(200).json({
+          success: false,
+          config: failedConfig,
+          message: errorMsg,
+        });
+      }
+    } catch (globalErr) {
+      console.error('Error in /api/sheet-config:', globalErr);
+      return res.status(200).json({
         success: false,
-        config: failedConfig,
-        message: errorMsg,
+        message: globalErr instanceof Error ? globalErr.message : 'Error intern en desar la configuració.',
       });
     }
   });
