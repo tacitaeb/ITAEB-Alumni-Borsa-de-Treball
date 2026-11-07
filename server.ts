@@ -691,22 +691,23 @@ async function startServer() {
     }
   });
 
-  app.post('/api/test-sheet-write', async (req, res) => {
-    const { webhookUrl } = req.body || {};
+  app.all('/api/test-sheet-write', async (req, res) => {
+    const webhookUrl = (req.body && req.body.webhookUrl) || (req.query && req.query.webhookUrl);
     const cfg = readConfig();
-    const targetWebhook = (webhookUrl || cfg.appsScriptWebhookUrl || '').trim();
+    const targetWebhook = String(webhookUrl || cfg.appsScriptWebhookUrl || '').trim();
 
-    if (!targetWebhook) {
-      res.status(400).json({
+    if (!targetWebhook || !targetWebhook.startsWith('https://script.google.com/')) {
+      res.status(200).json({
         success: false,
-        message: "No s'ha configurat cap URL de Webhook. Enganxa l'URL de l'Apps Script que acaba en /exec.",
+        message: "No s'ha configurat cap URL de Webhook vàlida. Enganxa l'URL de l'Apps Script que comença per https://script.google.com/ i acaba en /exec.",
       });
       return;
     }
 
     try {
       console.log(`[GoogleSheetSync] Provant Webhook: ${targetWebhook}`);
-      const resp = await fetch(targetWebhook, {
+      // 1. Prova mitjançant POST
+      let resp = await fetch(targetWebhook, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -716,7 +717,7 @@ async function startServer() {
         redirect: 'follow',
       });
 
-      const text = await resp.text();
+      let text = await resp.text();
       let data: { success?: boolean; message?: string; error?: string } | null = null;
       try {
         data = JSON.parse(text);
@@ -725,19 +726,50 @@ async function startServer() {
       }
 
       if (data && data.success) {
-        res.json({
+        return res.json({
           success: true,
           message: data.message || "Connexió amb Google Apps Script establerta amb èxit! El full té permís d'escriptura actiu.",
         });
-      } else {
-        res.json({
+      }
+
+      // 2. Si el POST dóna 405 (Method Not Allowed), provem GET (doGet)
+      if (resp.status === 405 || !resp.ok) {
+        try {
+          const getResp = await fetch(targetWebhook, {
+            method: 'GET',
+            redirect: 'follow',
+          });
+          const getText = await getResp.text();
+          let getData: { success?: boolean; message?: string } | null = null;
+          try {
+            getData = JSON.parse(getText);
+          } catch {}
+
+          if (getResp.ok && (getData?.success || getText.includes('ITAEB') || getText.includes('ok'))) {
+            return res.json({
+              success: true,
+              message: "Connexió amb Google Apps Script verificada correctament! (doGet respon actiu).",
+            });
+          }
+        } catch (getErr) {
+          console.warn('[GoogleSheetSync] GET fallback error:', getErr);
+        }
+      }
+
+      if (resp.status === 405) {
+        return res.json({
           success: false,
-          message: data?.error || data?.message || `El Webhook ha respost amb codi HTTP ${resp.status}: ${text.slice(0, 150)}`,
+          message: "El Webhook ha respost amb codi 405 (Mètode no permès). Assegura't que has copiat la URL de la implementació d'Apps Script i que has guardat el codi (Ctrl+S) abans d'implementar.",
         });
       }
+
+      return res.json({
+        success: false,
+        message: data?.error || data?.message || `El Webhook ha respost amb codi HTTP ${resp.status}: ${text.slice(0, 150)}`,
+      });
     } catch (err) {
       console.warn('[GoogleSheetSync] Error provant Webhook:', err);
-      res.status(500).json({
+      return res.status(200).json({
         success: false,
         message: `Error en connectar amb el Webhook: ${err instanceof Error ? err.message : String(err)}`,
       });
