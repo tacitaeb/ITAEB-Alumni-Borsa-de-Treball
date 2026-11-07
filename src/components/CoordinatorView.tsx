@@ -61,16 +61,226 @@ import {
 } from '../utils/googleSheetsApi';
 
 const APPS_SCRIPT_OFFICIAL_CODE = `/**
- * ITAEB Borsa de Treball - Webhook d'Escriptura i Automatització
- * Google Apps Script associat al full de càlcul: "ITAEB Borsa de Treball"
- *
- * 1. doPost(e): Rep canvis de perfil i nova contrasenya des de la web i actualitza
- *    la fila corresponent a la fulla "Exalumnes", preservant "Verificat" (Columna J).
- * 2. doGet(e): Permet provar que el Webhook estigui actiu i respongui.
- * 3. onFormSubmit(e): Activador automàtic en omplir el formulari 1X1MzJa2RjFkcsPZS8BHRZHV1vBvxxaA54fwE4aMW8I0
- *    Verifica DNI i Especialitat contra "Llistat alumni ITAEB" i afegeix a alumni@itaeb.cat.
+ * ITAEB Borsa de Treball - Script Complet i Unificat (100% Gratuït)
+ * Associat al full de càlcul: "ITAEB Borsa de Treball"
+ * Sense cap cost ni dependència de Google Cloud Platform (GCP)
  */
 
+// --- CONFIGURACIÓ DE FULLS I CORREUS ---
+const SPREADSHEET_ID = '1YsrfzmjYt7tgixvfkDfkWOgkRJEL1U9aIC50jpPcZtI';
+const FULL_OFERTES = 'Ofertes';
+const FULL_EXALUMNES = 'Exalumnes';
+const FULL_LLISTAT = 'Llistat alumni ITAEB';
+const CORREU_BORSA = 'BorsaTreball@itaeb.cat';   // Remitent dels correus
+const CORREU_ADMIN = 'empresa@itaeb.cat';        // Destinatari dels avisos d'incidència
+
+// Helper: obté el full actiu o l'obre per ID (permet que funcioni tant lligat al full com a projecte nou independent)
+function getSpreadsheet() {
+  return SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
+}
+
+// --- 1. UTILITAT DE NORMALITZACIÓ DE TEXT ---
+function normalitza(str) {
+  if (!str) return '';
+  return str.toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/g, '') // treu accents (à, è, é...)
+    .replace(/·/g, '') // normalitza punt volat català
+    .replace(/['’]/g, ' ')
+    .replace(/[^a-z0-9\\s]/g, ' ')
+    .replace(/\\s+/g, ' ')
+    .trim();
+}
+
+function normalitzarText(str) {
+  return normalitza(str);
+}
+
+// --- 2. ENVIAMENT D'OFERTES DE TREBALL PER CORREU ALS EXALUMNES ---
+function comprovarOfertesNoves() {
+  const ss = getSpreadsheet();
+  const fullOfertes = ss.getSheetByName(FULL_OFERTES);
+  const fullExalumnes = ss.getSheetByName(FULL_EXALUMNES);
+  if (!fullOfertes || !fullExalumnes) return;
+
+  const ofertes = fullOfertes.getDataRange().getValues();
+  const exalumnes = fullExalumnes.getDataRange().getValues();
+
+  for (let i = 1; i < ofertes.length; i++) {
+    const oferta = ofertes[i];
+    const notificat = oferta[12]; // Columna 13: Notificat
+
+    if (notificat === 'SÍ') continue;
+
+    const sectorsOferta = (oferta[10] || '').toString().split(',')
+      .map(s => normalitza(s))
+      .filter(s => s.length > 0);
+
+    if (sectorsOferta.length === 0) continue;
+
+    for (let j = 1; j < exalumnes.length; j++) {
+      const exalumne = exalumnes[j];
+      const correu = (exalumne[3] || '').toString().trim(); // Col D: Correu
+      const nom = (exalumne[1] || '').toString().trim();     // Col B: Nom
+      const notificacions = normalitza(exalumne[8] || exalumne[7] || '');
+
+      if (!correu) continue;
+      if (notificacions !== 'si' && notificacions !== 'sí') continue;
+
+      const sectorsExalumne = (exalumne[7] || exalumne[6] || '').toString().split(',')
+        .map(s => normalitza(s))
+        .filter(s => s.length > 0);
+
+      const coincideix = sectorsOferta.some(so =>
+        sectorsExalumne.some(se => se === so || se.indexOf(so) !== -1 || so.indexOf(se) !== -1)
+      );
+
+      if (coincideix) {
+        const sectorsCoincidents = sectorsOferta
+          .filter(so => sectorsExalumne.some(se => se === so || se.indexOf(so) !== -1 || so.indexOf(se) !== -1))
+          .join(', ');
+
+        try {
+          GmailApp.sendEmail(
+            correu,
+            'Nova oferta de treball - ITAEB',
+            \`Hola \${nom},\\n\\n\` +
+            \`T'informem que s'ha publicat una nova oferta de treball en el sector "\${sectorsCoincidents}" que pot interessar-te:\\n\\n\` +
+            \`Empresa: \${oferta[0]}\\n\` +
+            \`Lloc de treball: \${oferta[1]}\\n\` +
+            \`Persona de contacte: \${oferta[2]}\\n\` +
+            \`Descripció: \${oferta[3]}\\n\` +
+            \`Requisits: \${oferta[4]}\\n\` +
+            \`Tipus de contracte: \${oferta[5]}\\n\` +
+            \`Data límit enviament de currículums: \${oferta[7]}\\n\` +
+            \`Data d'inici: \${oferta[8]}\\n\` +
+            \`Contacte: \${oferta[9]}\\n\\n\` +
+            \`Accedeix a la borsa de treball de l'ITAEB per veure totes les ofertes disponibles.\\n\\n\` +
+            \`Salutacions,\\nEquip ITAEB\`,
+            { from: CORREU_BORSA }
+          );
+        } catch(err) {
+          Logger.log('Error enviant correu a ' + correu + ': ' + err);
+        }
+      }
+    }
+
+    fullOfertes.getRange(i + 1, 13).setValue('SÍ');
+  }
+}
+
+// Activador horari per comprovar ofertes cada hora
+function configurarActivadorHorari() {
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === 'comprovarOfertesNoves') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+
+  ScriptApp.newTrigger('comprovarOfertesNoves')
+    .timeBased()
+    .everyHours(1)
+    .create();
+}
+
+// --- 3. VERIFICACIÓ AUTOMÀTICA EN ENVIAR EL FORMULARI D'ALTA (Google Form) ---
+function onFormSubmit(e) {
+  var ss = getSpreadsheet();
+  var sheetExalumnes = ss.getSheetByName(FULL_EXALUMNES);
+  var sheetOficial = ss.getSheetByName(FULL_LLISTAT);
+  if (!sheetExalumnes || !sheetOficial) return;
+
+  var lastRow = sheetExalumnes.getLastRow();
+  if (lastRow < 2) return;
+
+  var nomAlumne = sheetExalumnes.getRange(lastRow, 2).getValue().toString().trim();
+  var dniAlumne = sheetExalumnes.getRange(lastRow, 3).getValue().toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  var correuAlumne = sheetExalumnes.getRange(lastRow, 4).getValue().toString().trim().toLowerCase();
+  var especialitatAlumne = normalitza(sheetExalumnes.getRange(lastRow, 7).getValue());
+
+  if (!correuAlumne || !dniAlumne) return;
+
+  var dadesOficials = sheetOficial.getDataRange().getValues();
+  var esGraduat = false;
+  var coincidenciaDNI = false;
+
+  for (var i = 1; i < dadesOficials.length; i++) {
+    var estudisOficials = normalitza(dadesOficials[i][0]);
+    var dniOficial = (dadesOficials[i][2] + "").toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+    if (dniOficial === dniAlumne && dniOficial.length > 5) {
+      coincidenciaDNI = true;
+      if (estudisOficials === especialitatAlumne ||
+          estudisOficials.indexOf(especialitatAlumne) !== -1 ||
+          especialitatAlumne.indexOf(estudisOficials) !== -1) {
+        esGraduat = true;
+        break;
+      }
+    }
+  }
+
+  var colVerificat = 10;
+  if (esGraduat) {
+    sheetExalumnes.getRange(lastRow, colVerificat).setValue("SÍ");
+
+    try {
+      if (typeof AdminDirectory !== 'undefined' && AdminDirectory.Members) {
+        AdminDirectory.Members.insert({ email: correuAlumne, role: 'MEMBER' }, 'alumni@itaeb.cat');
+      }
+    } catch(err) {
+      Logger.log("Avís afegint a alumni@itaeb.cat: " + err);
+    }
+
+    try {
+      GmailApp.sendEmail(
+        correuAlumne,
+        'Benvingut/da a la Borsa de Treball ITAEB',
+        \`Hola \${nomAlumne},\\n\\nJa formes part de la borsa de treball oficial de l'ITAEB com a exalumne verificat.\\n\\nAviat rebràs notificacions de noves ofertes de treball que s'adaptin als teus interessos.\\n\\nSalutacions,\\nEquip ITAEB\`,
+        { from: CORREU_BORSA }
+      );
+    } catch(e) {
+      Logger.log('Avís correu benvinguda: ' + e);
+    }
+
+  } else if (coincidenciaDNI) {
+    sheetExalumnes.getRange(lastRow, colVerificat).setValue("PENDENT (Especialitat diferent)");
+    try {
+      GmailApp.sendEmail(
+        CORREU_ADMIN,
+        'Inscripció pendent de verificació - ITAEB',
+        \`L'alumne \${nomAlumne} (\${correuAlumne}) ha quedat PENDENT de verificació.\\n\\nMotiu: Especialitat cursada no coincident.\\nDNI: \${dniAlumne}\\nEspecialitat: \${especialitatAlumne}\`,
+        { from: CORREU_BORSA }
+      );
+    } catch(e) {}
+  } else {
+    sheetExalumnes.getRange(lastRow, colVerificat).setValue("PENDENT (DNI no trobat)");
+    try {
+      GmailApp.sendEmail(
+        CORREU_ADMIN,
+        'Inscripció pendent de verificació - ITAEB',
+        \`L'alumne \${nomAlumne} (\${correuAlumne}) ha quedat PENDENT de verificació.\\n\\nMotiu: DNI no trobat al registre oficial.\\nDNI: \${dniAlumne}\`,
+        { from: CORREU_BORSA }
+      );
+    } catch(e) {}
+  }
+}
+
+// Configurar activador automàtic en enviar el formulari
+function configurarActivadorExalumnes() {
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === 'onFormSubmit') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+
+  ScriptApp.newTrigger('onFormSubmit')
+    .forSpreadsheet(getSpreadsheet())
+    .onFormSubmit()
+    .create();
+}
+
+// --- 4. WEBHOOK PER ACTUALITZAR PERFIL I CONTRASENYA DES DE LA WEB ---
 function doPost(e) {
   try {
     if (!e || !e.postData || !e.postData.contents) {
@@ -83,7 +293,6 @@ function doPost(e) {
     var payload = JSON.parse(e.postData.contents);
     var action = payload.action || 'update_alumni';
 
-    // Acció 1: Test de ping / connexió des de la web
     if (action === 'test' || action === 'ping') {
       return ContentService.createTextOutput(JSON.stringify({
         success: true,
@@ -91,10 +300,9 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // Acció 2: Actualització de perfil i contrasenya d'un exalumne
     if (action === 'update_alumni') {
-      var ss = SpreadsheetApp.getActiveSpreadsheet();
-      var targetSheetName = payload.sheetName || "Exalumnes";
+      var ss = getSpreadsheet();
+      var targetSheetName = payload.sheetName || FULL_EXALUMNES;
       var sheet = ss.getSheetByName(targetSheetName);
 
       if (!sheet) {
@@ -113,7 +321,7 @@ function doPost(e) {
       }
 
       var values = sheet.getDataRange().getValues();
-      var emailCol = 3; // Per defecte columna D (índex 3)
+      var emailCol = 3;
 
       if (values.length > 0) {
         var header = values[0];
@@ -130,7 +338,7 @@ function doPost(e) {
       for (var i = 1; i < values.length; i++) {
         var rowEmail = (values[i][emailCol] + "").toString().trim().toLowerCase();
         if (rowEmail === targetEmail) {
-          rowIndex = i + 1; // 1-indexed a Google Sheets
+          rowIndex = i + 1;
           break;
         }
       }
@@ -143,29 +351,21 @@ function doPost(e) {
       }
 
       var a = payload.alumni || {};
-      // Columna 2 (B): Nom i cognoms
       if (a.nomCognoms !== undefined && a.nomCognoms !== null) sheet.getRange(rowIndex, 2).setValue(a.nomCognoms);
-      // Columna 3 (C): DNI
       if (a.dni !== undefined && a.dni !== null) sheet.getRange(rowIndex, 3).setValue(a.dni);
-      // Columna 4 (D): Correu
       if (a.correu !== undefined && a.correu !== null) sheet.getRange(rowIndex, 4).setValue(a.correu);
-      // Columna 5 (E): Contrasenya (canviada per l'alumni a la web)
       if (a.contrasenya !== undefined && a.contrasenya !== null) sheet.getRange(rowIndex, 5).setValue(a.contrasenya);
-      // Columna 6 (F): Any de graduació
       if (a.anyGraduacio !== undefined && a.anyGraduacio !== null) sheet.getRange(rowIndex, 6).setValue(a.anyGraduacio);
-      // Columna 7 (G): Especialitat cursada
       if (a.especialitat !== undefined && a.especialitat !== null) sheet.getRange(rowIndex, 7).setValue(a.especialitat);
-      // Columna 8 (H): Sectors d'interès
       if (a.sectorsInteres !== undefined && a.sectorsInteres !== null) {
         var sectorsStr = Array.isArray(a.sectorsInteres) ? a.sectorsInteres.join(", ") : a.sectorsInteres;
         sheet.getRange(rowIndex, 8).setValue(sectorsStr);
       }
-      // Columna 9 (I): Notificacions per correu (Sí/No)
       if (typeof a.notificacionsCorreu === "boolean") {
         sheet.getRange(rowIndex, 9).setValue(a.notificacionsCorreu ? "Sí" : "No");
       }
 
-      // Columna 10 (J): "Verificat" NO es modifica mai per mantenir la protecció oficial
+      // Columna 10 (J): "Verificat" ES MANTÉ INTACTA per seguretat oficial
 
       return ContentService.createTextOutput(JSON.stringify({
         success: true,
@@ -193,64 +393,6 @@ function doGet(e) {
     status: "ok",
     message: "ITAEB Borsa de Treball Webhook actiu i preparat."
   })).setMimeType(ContentService.MimeType.JSON);
-}
-
-function normalitzarText(str) {
-  if (!str) return '';
-  return str.toString()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\\u0300-\\u036f]/g, '')
-    .replace(/·/g, '')
-    .replace(/['’]/g, ' ')
-    .replace(/[^a-z0-9\\s]/g, ' ')
-    .replace(/\\s+/g, ' ')
-    .trim();
-}
-
-function onFormSubmit(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetExalumnes = ss.getSheetByName("Exalumnes");
-  var sheetOficial = ss.getSheetByName("Llistat alumni ITAEB");
-  if (!sheetExalumnes || !sheetOficial) return;
-
-  var lastRow = sheetExalumnes.getLastRow();
-  var dniAlumne = sheetExalumnes.getRange(lastRow, 3).getValue().toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-  var correuAlumne = sheetExalumnes.getRange(lastRow, 4).getValue().toString().trim().toLowerCase();
-  var especialitatAlumne = normalitzarText(sheetExalumnes.getRange(lastRow, 7).getValue());
-
-  var dadesOficials = sheetOficial.getDataRange().getValues();
-  var esGraduat = false;
-  var coincidenciaDNI = false;
-
-  for (var i = 1; i < dadesOficials.length; i++) {
-    var estudisOficials = normalitzarText(dadesOficials[i][0]);
-    var dniOficial = (dadesOficials[i][2] + "").toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-
-    if (dniOficial === dniAlumne && dniOficial.length > 5) {
-      coincidenciaDNI = true;
-      if (estudisOficials === especialitatAlumne ||
-          estudisOficials.indexOf(especialitatAlumne) !== -1 ||
-          especialitatAlumne.indexOf(estudisOficials) !== -1) {
-        esGraduat = true;
-        break;
-      }
-    }
-  }
-
-  var colVerificat = 10;
-  if (esGraduat) {
-    sheetExalumnes.getRange(lastRow, colVerificat).setValue("SÍ");
-    try {
-      AdminDirectory.Members.insert({ email: correuAlumne, role: "MEMBER" }, "alumni@itaeb.cat");
-    } catch(err) {
-      Logger.log("Avís Workspace: " + err);
-    }
-  } else if (coincidenciaDNI) {
-    sheetExalumnes.getRange(lastRow, colVerificat).setValue("PENDENT (Especialitat diferent)");
-  } else {
-    sheetExalumnes.getRange(lastRow, colVerificat).setValue("PENDENT (DNI no trobat)");
-  }
 }
 `;
 
@@ -928,10 +1070,12 @@ function onFormSubmit(e) {
     sheetExalumnes.getRange(lastRow, colVerificat).setValue("SÍ");
     
     try {
-      AdminDirectory.Members.insert({
-        email: correuAlumne,
-        role: "MEMBER"
-      }, "alumni@itaeb.cat");
+      if (typeof AdminDirectory !== 'undefined' && AdminDirectory.Members) {
+        AdminDirectory.Members.insert({
+          email: correuAlumne,
+          role: "MEMBER"
+        }, "alumni@itaeb.cat");
+      }
     } catch(err) {
       Logger.log("Avís al grup Workspace: " + err);
     }
@@ -1472,7 +1616,7 @@ function onFormSubmit(e) {
                   </button>
                 </div>
 
-                <ol className="list-decimal list-inside text-xs text-slate-300 space-y-1.5 leading-relaxed">
+                <ol className="list-decimal list-inside text-xs text-slate-300 space-y-2 leading-relaxed">
                   <li>
                     Obre el full de càlcul <strong>"ITAEB Borsa de Treball"</strong> a Google Drive amb el compte <code className="text-amber-300">tac@itaeb.cat</code>.
                   </li>
@@ -1480,25 +1624,39 @@ function onFormSubmit(e) {
                     Ves al menú superior: <strong>Extensions</strong> → <strong>Apps Script</strong>.
                   </li>
                   <li>
-                    Esborra qualsevol codi existent i enganxa el codi que hi ha a sota (clica el botó "Copiar codi complet").
+                    Esborra qualsevol codi antic existent i enganxa el codi que hi ha a sota (clica el botó "Copiar codi complet").
+                  </li>
+                  <li>
+                    <strong className="text-amber-300">MOLT IMPORTANT:</strong> Clica a la icona del disquet <strong>"Desa"</strong> (o prem <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700">Ctrl + S</kbd>) per desar el fitxer de codi.
                   </li>
                   <li>
                     Clica a dalt a la dreta al botó blau: <strong>Implementa</strong> (Deploy) → <strong>Implementació nova</strong>.
                   </li>
                   <li>
-                    Fes clic a la icona d'engranatge i tria: <strong>Aplicació web</strong> (Web app).
+                    Fes clic a la icona d'engranatge ⚙️ (al costat de "Selecciona el tipus") i tria: <strong>Aplicació web</strong> (Web app).
                   </li>
                   <li>
-                    A <em>"Executa com a"</em>: tria <strong>Jo (tac@itaeb.cat)</strong>.
+                    A <em>"Descripció"</em>: escriu <code className="text-emerald-400">v1</code>. A <em>"Executa com a"</em>: tria <strong>Jo (tac@itaeb.cat)</strong>.
                   </li>
                   <li>
                     A <em>"Qui hi té accés"</em>: tria <strong>Qualsevol persona</strong> (Anyone).
+                    <span className="block text-[11px] text-amber-200 mt-0.5 ml-4">
+                      * Nota de domini: Si l'administrador de Google Workspace d'ITAEB no permet "Qualsevol persona", tria <strong>"Qualsevol persona de l'organització ITAEB"</strong>.
+                    </span>
                   </li>
                   <li>
-                    Clica <strong>Implementa</strong>, atorga permisos si te'ls demana i copia l'<strong>URL de l'aplicació web</strong> (acaba en <code className="text-emerald-400">/exec</code>).
+                    Clica al botó blau <strong>Implementa</strong>:
+                    <div className="bg-slate-950/80 p-3 rounded-lg border border-slate-700 mt-1.5 ml-4 space-y-1 text-[11px] text-slate-200">
+                      <strong className="text-amber-300 block">Com passar la pantalla d'autorització de Google:</strong>
+                      <p>1. Clica a <strong>"Autoritza l'accés"</strong> i selecciona el teu compte <code className="text-sky-300">tac@itaeb.cat</code>.</p>
+                      <p>2. Si Google mostra un avís en vermell que diu <em>"Google no ha verificat aquesta aplicació"</em>, <strong>NO és un error</strong> (és l'avís de seguretat estàndard per a scripts propis).</p>
+                      <p>3. Clica a l'enllaç petit de sota: <strong>"Avançat"</strong> (o <em>"Configuració avançada"</em> / <em>Advanced</em>).</p>
+                      <p>4. Clica a <strong>"Vés a ITAEB Borsa de Treball (no segur)"</strong>.</p>
+                      <p>5. Clica al botó <strong>"Permet"</strong> (Allow).</p>
+                    </div>
                   </li>
                   <li>
-                    Enganxa l'URL copiat a la casella de dalt i clica <strong>"Desar URL"</strong> i després <strong>"Provar escriptura"</strong>.
+                    Copia l'<strong>URL de l'aplicació web</strong> generada (acaba en <code className="text-emerald-400">/exec</code>), enganxa-la a la casella de dalt i clica <strong>"Desar URL"</strong> i després <strong>"Provar escriptura"</strong>.
                   </li>
                 </ol>
 
